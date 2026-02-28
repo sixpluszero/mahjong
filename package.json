@@ -1,0 +1,13 @@
+{
+  "name": "mahjong",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "test": "npm run test -w @mahjong/shared",
+    "dev:server": "npm run dev -w @mahjong/server",
+    "dev:client": "npm run client -w @mahjong/server"
+  }
+}

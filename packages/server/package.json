@@ -1,0 +1,14 @@
+{
+  "name": "@mahjong/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node src/index.js",
+    "client": "node scripts/debug-client.js"
+  },
+  "dependencies": {
+    "@mahjong/shared": "0.1.0",
+    "ws": "^8.18.3"
+  }
+}

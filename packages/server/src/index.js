@@ -1,9 +1,15 @@
 import { createServer } from 'node:http';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 
 import {
   assignLackSuit,
   createInitialGame,
+  declareAnGang,
+  declareBuGang,
+  declareSelfDrawHu,
   discardTile,
   getPublicSnapshot,
   resolveReactions,
@@ -11,12 +17,39 @@ import {
 } from '@mahjong/shared';
 
 const PORT = Number(process.env.PORT ?? 8787);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const WEB_ROOT = path.resolve(__dirname, '../../web/src');
+const STATIC_FILES = new Map([
+  ['/', { file: 'index.html', type: 'text/html; charset=utf-8' }],
+  ['/app.js', { file: 'app.js', type: 'application/javascript; charset=utf-8' }],
+  ['/styles.css', { file: 'styles.css', type: 'text/css; charset=utf-8' }]
+]);
 const rooms = new Map();
 const connections = new Map();
 
-const httpServer = createServer((_req, res) => {
-  res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
-  res.end(JSON.stringify({ ok: true, service: 'mahjong-server' }));
+const httpServer = createServer(async (req, res) => {
+  if (req.url === '/api/health') {
+    res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ ok: true, service: 'mahjong-server' }));
+    return;
+  }
+
+  const staticEntry = STATIC_FILES.get(req.url ?? '/');
+  if (!staticEntry) {
+    res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+    res.end('Not Found');
+    return;
+  }
+
+  try {
+    const content = await readFile(path.join(WEB_ROOT, staticEntry.file));
+    res.writeHead(200, { 'content-type': staticEntry.type });
+    res.end(content);
+  } catch {
+    res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
+    res.end('Failed to load static asset');
+  }
 });
 
 const wss = new WebSocketServer({ server: httpServer });
@@ -91,6 +124,15 @@ function handleIncoming(socket, raw) {
         return;
       case 'discard':
         handleDiscard(client, payload);
+        return;
+      case 'self_hu':
+        handleSelfHu(client);
+        return;
+      case 'an_gang':
+        handleAnGang(client, payload);
+        return;
+      case 'bu_gang':
+        handleBuGang(client, payload);
         return;
       case 'react':
         handleReact(client, payload);
@@ -189,6 +231,31 @@ function handleSetLack(client, payload) {
 function handleDiscard(client, payload) {
   const room = requireGameRoom(client, 'play');
   discardTile(room.game, client.seat, payload.tileId);
+
+  if (!room.game.pendingReactions) {
+    room.reactionIntents.clear();
+  }
+
+  emitGameState(room);
+}
+
+function handleSelfHu(client) {
+  const room = requireGameRoom(client, 'play');
+  declareSelfDrawHu(room.game, client.seat);
+  room.reactionIntents.clear();
+  emitGameState(room);
+}
+
+function handleAnGang(client, payload) {
+  const room = requireGameRoom(client, 'play');
+  declareAnGang(room.game, client.seat, payload.tileId);
+  room.reactionIntents.clear();
+  emitGameState(room);
+}
+
+function handleBuGang(client, payload) {
+  const room = requireGameRoom(client, 'play');
+  declareBuGang(room.game, client.seat, payload.tileId);
 
   if (!room.game.pendingReactions) {
     room.reactionIntents.clear();
@@ -343,8 +410,10 @@ function emitGameState(room) {
       you: {
         seat: player.seat,
         hand: room.game.players[player.seat].hand,
+        melds: room.game.players[player.seat].melds,
         lackSuit: room.game.players[player.seat].lackSuit,
-        hasHu: room.game.players[player.seat].hasHu
+        hasHu: room.game.players[player.seat].hasHu,
+        score: room.game.players[player.seat].score
       },
       state: publicState,
       pendingReaction: describePendingForSeat(room.game.pendingReactions, player.seat)

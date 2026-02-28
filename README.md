@@ -12,6 +12,8 @@ Packages:
 Quick start:
 - `npm install`
 - `npm run dev:server`
-- In separate terminals, run bots:
+- Open browser: `http://localhost:8787`
+- You can open 4 tabs/windows, set different names, join same room, and play manually.
+- Optional bot debug:
   - `npm run dev:client`
   - `ROOM_ID=<room_id_from_logs> npm run dev:client`

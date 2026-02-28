@@ -23,6 +23,9 @@ export {
   assignLackSuit,
   discardTile,
   resolveReactions,
+  declareSelfDrawHu,
+  declareAnGang,
+  declareBuGang,
   drawTileForSeat,
   getPublicSnapshot
 } from './game.js';

@@ -10,6 +10,9 @@ Server URL: `ws://localhost:8787`
 - `submit_exchange`: `{ tileIds: string[3] }`
 - `set_lack`: `{ lackSuit: 'wan'|'tiao'|'tong' }`
 - `discard`: `{ tileId: string }`
+- `self_hu`: `{}`
+- `an_gang`: `{ tileId: string }`
+- `bu_gang`: `{ tileId: string }`
 - `react`: `{ action: 'hu'|'gang'|'peng'|'pass' }`
 - `get_state`: `{}`
 

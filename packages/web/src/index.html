@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>四川麻将调试客户端</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <h1>四川麻将（本地调试）</h1>
+
+      <section class="panel">
+        <h2>连接与房间</h2>
+        <div class="row">
+          <label>昵称</label>
+          <input id="nameInput" placeholder="例如 玩家A" maxlength="20" />
+          <button id="helloBtn" type="button">确认昵称</button>
+        </div>
+
+        <div class="row">
+          <button id="createRoomBtn" type="button">创建房间</button>
+          <input id="roomIdInput" placeholder="输入房间号加入" maxlength="6" />
+          <button id="joinRoomBtn" type="button">加入房间</button>
+          <button id="readyBtn" type="button">准备</button>
+        </div>
+
+        <div id="status"></div>
+        <div id="roomInfo"></div>
+        <div id="players"></div>
+      </section>
+
+      <section class="panel">
+        <h2>对局</h2>
+        <div id="gameInfo"></div>
+        <div id="actionBar"></div>
+
+        <h3>你的手牌（点击可打出）</h3>
+        <div id="hand"></div>
+
+        <h3>你的副露</h3>
+        <div id="melds"></div>
+
+        <h3>结算事件（最近 10 条）</h3>
+        <pre id="events"></pre>
+      </section>
+    </main>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

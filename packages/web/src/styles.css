@@ -1,0 +1,112 @@
+:root {
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+  --line: #d9dee7;
+  --text: #1d2733;
+  --muted: #5f6f82;
+  --primary: #1565c0;
+  --danger: #b00020;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+.page {
+  max-width: 1100px;
+  margin: 24px auto;
+  padding: 0 16px;
+  display: grid;
+  gap: 16px;
+}
+
+h1, h2, h3 {
+  margin: 0 0 12px;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+input, button {
+  font-size: 14px;
+  padding: 7px 10px;
+}
+
+button {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: white;
+  cursor: pointer;
+}
+
+button.primary {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+button.danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+#status {
+  font-size: 14px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+#players,
+#gameInfo,
+#roomInfo,
+#melds {
+  white-space: pre-wrap;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+#hand {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tile {
+  min-width: 44px;
+  text-align: center;
+}
+
+#actionBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+#events {
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  background: #fafbfc;
+  margin: 0;
+}

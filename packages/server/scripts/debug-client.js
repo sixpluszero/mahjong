@@ -5,6 +5,11 @@ const NAME = process.env.NAME ?? `bot_${Math.random().toString(36).slice(2, 6)}`
 const ROOM_ID = process.env.ROOM_ID ?? '';
 
 const ws = new WebSocket(SERVER_URL);
+let readySent = false;
+let exchangeSent = false;
+let lackSent = false;
+let lastDiscardTurn = -1;
+let lastReactionKey = '';
 
 ws.on('open', () => {
   send('hello', { name: NAME });
@@ -22,8 +27,9 @@ ws.on('message', (raw) => {
 
   if (type === 'room_state') {
     const me = payload.players.find((p) => p.occupied && p.name === NAME);
-    if (me) {
+    if (me && !readySent && !payload.hasGame) {
       send('set_ready', { ready: true });
+      readySent = true;
     }
   }
 
@@ -38,8 +44,13 @@ ws.on('message', (raw) => {
   }
 });
 
-ws.on('close', () => {
-  console.log('disconnected');
+ws.on('close', (code, reasonBuffer) => {
+  const reason = reasonBuffer?.toString?.('utf-8') ?? '';
+  console.log(`disconnected code=${code} reason=${reason}`);
+});
+
+ws.on('error', (err) => {
+  console.error('[socket_error]', err.message);
 });
 
 function autoPlay(payload) {
@@ -47,6 +58,16 @@ function autoPlay(payload) {
   const hand = payload.you.hand;
 
   if (phase === 'exchange') {
+    lackSent = false;
+    lastDiscardTurn = -1;
+    lastReactionKey = '';
+  }
+
+  if (phase === 'exchange') {
+    if (exchangeSent) {
+      return;
+    }
+
     const suitGroups = {
       wan: [],
       tiao: [],
@@ -63,32 +84,53 @@ function autoPlay(payload) {
 
     if (choice) {
       send('submit_exchange', { tileIds: choice.slice(0, 3).map((tile) => tile.id) });
+      exchangeSent = true;
     }
 
     return;
   }
 
   if (phase === 'lack') {
+    exchangeSent = false;
+    if (lackSent) {
+      return;
+    }
+
     const counts = countSuits(hand);
     const lackSuit = Object.entries(counts).sort((a, b) => a[1] - b[1])[0][0];
     send('set_lack', { lackSuit });
+    lackSent = true;
     return;
   }
 
   if (phase === 'play') {
+    lackSent = false;
     if (payload.pendingReaction) {
+      const reactionKey = `${payload.pendingReaction.fromSeat}-${payload.pendingReaction.tile.id}`;
+      if (reactionKey === lastReactionKey) {
+        return;
+      }
+
       if (payload.pendingReaction.canHu) {
         send('react', { action: 'hu' });
       } else {
         send('react', { action: 'pass' });
       }
+      lastReactionKey = reactionKey;
       return;
     }
+    lastReactionKey = '';
 
     if (payload.state.turnSeat === payload.you.seat && hand.length > 0) {
+      if (lastDiscardTurn === payload.state.turnSeat) {
+        return;
+      }
       const discard = pickDiscardByLackFirst(hand, payload.you.lackSuit);
       send('discard', { tileId: discard.id });
+      lastDiscardTurn = payload.state.turnSeat;
+      return;
     }
+    lastDiscardTurn = -1;
   }
 }
 

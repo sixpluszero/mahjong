@@ -1,4 +1,4 @@
-import { evaluateFans, isDiscardAllowed } from './rules.js';
+import { calculateWinPayment, evaluateFans, isDiscardAllowed } from './rules.js';
 import { createDeck, parseTileCode, SUITS } from './tiles.js';
 
 const EXCHANGE_DIRECTIONS = ['clockwise', 'counterclockwise', 'across'];
@@ -50,7 +50,10 @@ export function createInitialGame(config = {}) {
     exchangeDirection,
     pendingReactions: null,
     discardPool: [],
-    winnerSeats: []
+    winnerSeats: [],
+    settlementEvents: [],
+    settlementReason: null,
+    lastDraw: null
   };
 }
 
@@ -120,13 +123,19 @@ export function discardTile(state, seat, tileId) {
   }
 
   player.hand.splice(tileIndex, 1);
+  const fromKongDiscard = state.lastDraw?.seat === seat && state.lastDraw.fromKong;
+  const isLastTileDiscard = state.wallHead > state.wallTail;
   state.discardPool.push({
     seat,
     tile,
     claimed: false
   });
+  state.lastDraw = null;
 
-  const pending = buildPendingReactions(state, seat, tile);
+  const pending = buildPendingReactions(state, seat, tile, {
+    kongPao: fromKongDiscard,
+    lastTileDiscard: isLastTileDiscard
+  });
   if (pending.options.length === 0) {
     advanceTurnAfterPass(state, seat);
     return state;
@@ -165,13 +174,24 @@ export function resolveReactions(state, actions) {
       if (!state.winnerSeats.includes(seat)) {
         state.winnerSeats.push(seat);
       }
+
+      const request = huRequests.find((entry) => entry.seat === seat);
+      settleDiscardHu(state, {
+        winnerSeat: seat,
+        fromSeat: pending.fromSeat,
+        tile: pending.tile,
+        huResult: request.huResult,
+        winMode: pending.kind === 'rob_kong' ? 'qiang_gang_hu' : 'dian_pao'
+      });
     }
 
-    markLatestDiscardClaimed(state);
+    if (pending.kind !== 'rob_kong') {
+      markLatestDiscardClaimed(state);
+    }
     state.pendingReactions = null;
 
     if (countActiveNonWinners(state) <= 1) {
-      state.phase = 'settlement';
+      finishRound(state, 'all_but_one_hu');
       return state;
     }
 
@@ -179,10 +199,22 @@ export function resolveReactions(state, actions) {
     return state;
   }
 
+  if (pending.kind === 'rob_kong') {
+    applyBuGang(state, pending.buGangSeat, pending.tile);
+    state.pendingReactions = null;
+    state.turnSeat = pending.buGangSeat;
+    drawTileForSeat(state, pending.buGangSeat, true);
+    return state;
+  }
+
   const gangRequests = requested.filter((entry) => entry.action === 'gang' && entry.canGang);
   if (gangRequests.length > 0) {
     const claimerSeat = selectNearestSeat(gangRequests.map((entry) => entry.seat), pending.fromSeat);
     applyClaimMeld(state, claimerSeat, pending.tile, 'ming_gang', 3);
+    settleMingGang(state, {
+      winnerSeat: claimerSeat,
+      fromSeat: pending.fromSeat
+    });
     markLatestDiscardClaimed(state);
     state.pendingReactions = null;
     state.turnSeat = claimerSeat;
@@ -214,7 +246,7 @@ export function drawTileForSeat(state, seat, useTail = false) {
   }
 
   if (state.wallHead > state.wallTail) {
-    state.phase = 'settlement';
+    finishRound(state, 'wall_exhausted');
     return null;
   }
 
@@ -229,8 +261,131 @@ export function drawTileForSeat(state, seat, useTail = false) {
 
   player.hand.push(tile);
   sortHand(player.hand);
+  state.lastDraw = {
+    seat,
+    fromKong: useTail,
+    lastTile: state.wallHead > state.wallTail
+  };
 
   return tile;
+}
+
+export function declareSelfDrawHu(state, seat) {
+  assertPhase(state, 'play');
+  ensureNoPendingReactions(state);
+
+  if (state.turnSeat !== seat) {
+    throw new Error('NOT_YOUR_TURN');
+  }
+
+  const player = getPlayer(state, seat);
+  if (player.hasHu) {
+    throw new Error('ALREADY_HU');
+  }
+
+  const huResult = evaluateFans({
+    tiles: player.hand,
+    lackSuit: player.lackSuit,
+    context: {
+      selfDraw: true,
+      menQing: isMenQing(player),
+      kongDraw: Boolean(state.lastDraw?.seat === seat && state.lastDraw.fromKong),
+      lastTileDraw: Boolean(state.lastDraw?.seat === seat && state.lastDraw.lastTile)
+    },
+    config: state.config
+  });
+
+  if (!huResult.canHu) {
+    throw new Error('SELF_DRAW_HU_NOT_ALLOWED');
+  }
+
+  player.hasHu = true;
+  if (!state.winnerSeats.includes(seat)) {
+    state.winnerSeats.push(seat);
+  }
+
+  settleSelfDrawHu(state, {
+    winnerSeat: seat,
+    huResult
+  });
+  state.lastDraw = null;
+
+  if (countActiveNonWinners(state) <= 1) {
+    finishRound(state, 'all_but_one_hu');
+    return state;
+  }
+
+  advanceTurnAfterPass(state, seat);
+  return state;
+}
+
+export function declareAnGang(state, seat, tileId) {
+  assertPhase(state, 'play');
+  ensureNoPendingReactions(state);
+
+  if (state.turnSeat !== seat) {
+    throw new Error('NOT_YOUR_TURN');
+  }
+
+  const player = getPlayer(state, seat);
+  const tile = player.hand.find((item) => item.id === tileId);
+  if (!tile) {
+    throw new Error('TILE_NOT_IN_HAND');
+  }
+
+  const sameTiles = player.hand.filter((item) => sameKind(item, tile));
+  if (sameTiles.length < 4) {
+    throw new Error('NOT_ENOUGH_TILES_FOR_AN_GANG');
+  }
+
+  removeTilesByMatcher(player.hand, (item) => sameKind(item, tile), 4);
+  player.melds.push({
+    type: 'an_gang',
+    tile: { ...tile },
+    fromDiscard: false
+  });
+
+  settleAnGang(state, {
+    winnerSeat: seat
+  });
+  drawTileForSeat(state, seat, true);
+  return state;
+}
+
+export function declareBuGang(state, seat, tileId) {
+  assertPhase(state, 'play');
+  ensureNoPendingReactions(state);
+
+  if (state.turnSeat !== seat) {
+    throw new Error('NOT_YOUR_TURN');
+  }
+
+  const player = getPlayer(state, seat);
+  const tile = player.hand.find((item) => item.id === tileId);
+  if (!tile) {
+    throw new Error('TILE_NOT_IN_HAND');
+  }
+
+  const hasPeng = player.melds.some((meld) => meld.type === 'peng' && sameKind(meld.tile, tile));
+  if (!hasPeng) {
+    throw new Error('NO_MATCHING_PENG_FOR_BU_GANG');
+  }
+
+  const robOptions = buildRobKongOptions(state, seat, tile);
+  if (robOptions.length > 0) {
+    state.pendingReactions = {
+      kind: 'rob_kong',
+      fromSeat: seat,
+      tile,
+      options: robOptions,
+      buGangSeat: seat
+    };
+    return state;
+  }
+
+  applyBuGang(state, seat, tile);
+  drawTileForSeat(state, seat, true);
+  return state;
 }
 
 export function getPublicSnapshot(state) {
@@ -243,6 +398,8 @@ export function getPublicSnapshot(state) {
     discardPool: [...state.discardPool],
     pendingReactions: state.pendingReactions,
     winnerSeats: [...state.winnerSeats],
+    settlementReason: state.settlementReason,
+    settlementEvents: [...state.settlementEvents],
     players: state.players.map((player) => ({
       seat: player.seat,
       handCount: player.hand.length,
@@ -307,7 +464,7 @@ function advanceTurnAfterPass(state, fromSeat) {
   const nextSeat = findNextActiveSeat(state, fromSeat);
 
   if (nextSeat === null) {
-    state.phase = 'settlement';
+    finishRound(state, 'no_active_players');
     return;
   }
 
@@ -326,7 +483,7 @@ function findNextActiveSeat(state, fromSeat) {
   return null;
 }
 
-function buildPendingReactions(state, fromSeat, tile) {
+function buildPendingReactions(state, fromSeat, tile, context = {}) {
   const options = [];
 
   for (let offset = 1; offset <= 3; offset += 1) {
@@ -345,7 +502,9 @@ function buildPendingReactions(state, fromSeat, tile) {
       lackSuit: player.lackSuit,
       context: {
         selfDraw: false,
-        menQing: true
+        menQing: isMenQing(player),
+        kongPao: Boolean(context.kongPao),
+        lastTileDiscard: Boolean(context.lastTileDiscard)
       },
       config: state.config
     });
@@ -357,12 +516,14 @@ function buildPendingReactions(state, fromSeat, tile) {
         seat,
         canHu,
         canGang,
-        canPeng
+        canPeng,
+        huResult: canHu ? huResult : null
       });
     }
   }
 
   return {
+    kind: 'normal',
     fromSeat,
     tile,
     options
@@ -408,6 +569,167 @@ function countActiveNonWinners(state) {
   return state.players.filter((player) => !player.hasHu).length;
 }
 
+function settleDiscardHu(state, { winnerSeat, fromSeat, tile, huResult, winMode = 'dian_pao' }) {
+  if (!huResult?.canHu) {
+    return;
+  }
+
+  const payment = calculateHuPayment(state, huResult);
+  applyTransfer(state, fromSeat, winnerSeat, payment);
+  state.settlementEvents.push({
+    type: 'hu',
+    winMode,
+    winnerSeat,
+    fromSeat,
+    tile: { ...tile },
+    fan: huResult.cappedFan,
+    rawFan: huResult.fan,
+    amount: payment,
+    patterns: huResult.patterns
+  });
+}
+
+function settleSelfDrawHu(state, { winnerSeat, huResult }) {
+  const payment = calculateHuPayment(state, huResult);
+  const payers = state.players
+    .filter((player) => player.seat !== winnerSeat && !player.hasHu)
+    .map((player) => player.seat);
+
+  for (const fromSeat of payers) {
+    applyTransfer(state, fromSeat, winnerSeat, payment);
+  }
+
+  state.settlementEvents.push({
+    type: 'hu',
+    winMode: 'zi_mo',
+    winnerSeat,
+    fromSeat: null,
+    fan: huResult.cappedFan,
+    rawFan: huResult.fan,
+    amount: payment,
+    payerCount: payers.length,
+    patterns: huResult.patterns
+  });
+}
+
+function settleMingGang(state, { winnerSeat, fromSeat }) {
+  const amount = state.config.baseScore;
+  applyTransfer(state, fromSeat, winnerSeat, amount);
+  state.settlementEvents.push({
+    type: 'gang',
+    gangType: 'ming_gang',
+    winnerSeat,
+    fromSeat,
+    amount
+  });
+}
+
+function settleAnGang(state, { winnerSeat }) {
+  const amount = state.config.baseScore;
+  const payers = state.players
+    .filter((player) => player.seat !== winnerSeat && !player.hasHu)
+    .map((player) => player.seat);
+
+  for (const fromSeat of payers) {
+    applyTransfer(state, fromSeat, winnerSeat, amount);
+  }
+
+  state.settlementEvents.push({
+    type: 'gang',
+    gangType: 'an_gang',
+    winnerSeat,
+    fromSeat: null,
+    amount,
+    payerCount: payers.length
+  });
+}
+
+function settleBuGang(state, { winnerSeat }) {
+  const amount = state.config.baseScore;
+  const payers = state.players
+    .filter((player) => player.seat !== winnerSeat && !player.hasHu)
+    .map((player) => player.seat);
+
+  for (const fromSeat of payers) {
+    applyTransfer(state, fromSeat, winnerSeat, amount);
+  }
+
+  state.settlementEvents.push({
+    type: 'gang',
+    gangType: 'bu_gang',
+    winnerSeat,
+    fromSeat: null,
+    amount,
+    payerCount: payers.length
+  });
+}
+
+function calculateHuPayment(state, huResult) {
+  return calculateWinPayment({
+    fan: huResult.fan,
+    maxFan: state.config.maxFan,
+    baseScore: state.config.baseScore
+  });
+}
+
+function applyTransfer(state, fromSeat, toSeat, amount) {
+  state.players[fromSeat].score -= amount;
+  state.players[toSeat].score += amount;
+}
+
+function finishRound(state, reason) {
+  state.phase = 'settlement';
+  state.settlementReason = reason;
+}
+
+function buildRobKongOptions(state, fromSeat, tile) {
+  const options = [];
+
+  for (let offset = 1; offset <= 3; offset += 1) {
+    const seat = (fromSeat + offset) % 4;
+    const player = state.players[seat];
+    if (player.hasHu) {
+      continue;
+    }
+
+    const candidateHand = [...player.hand, tile];
+    const huResult = evaluateFans({
+      tiles: candidateHand,
+      lackSuit: player.lackSuit,
+      context: {
+        selfDraw: false,
+        menQing: isMenQing(player),
+        robbedKong: true
+      },
+      config: state.config
+    });
+
+    if (huResult.canHu) {
+      options.push({
+        seat,
+        canHu: true,
+        canGang: false,
+        canPeng: false,
+        huResult
+      });
+    }
+  }
+
+  return options;
+}
+
+function applyBuGang(state, seat, tile) {
+  const player = getPlayer(state, seat);
+  const meld = player.melds.find((item) => item.type === 'peng' && sameKind(item.tile, tile));
+  if (!meld) {
+    throw new Error('NO_MATCHING_PENG_FOR_BU_GANG');
+  }
+
+  removeTilesByMatcher(player.hand, (item) => sameKind(item, tile), 1);
+  meld.type = 'bu_gang';
+  settleBuGang(state, { winnerSeat: seat });
+}
+
 function sortByDistanceFromSeat(seats, fromSeat) {
   return [...seats].sort((a, b) => distanceFrom(a, fromSeat) - distanceFrom(b, fromSeat));
 }
@@ -437,6 +759,24 @@ function pickTilesFromHand(hand, tileIds) {
   return picked;
 }
 
+function removeTilesByMatcher(hand, matcher, count) {
+  let remaining = count;
+  for (let i = hand.length - 1; i >= 0; i -= 1) {
+    if (remaining === 0) {
+      break;
+    }
+
+    if (matcher(hand[i])) {
+      hand.splice(i, 1);
+      remaining -= 1;
+    }
+  }
+
+  if (remaining > 0) {
+    throw new Error('NOT_ENOUGH_MATCHING_TILES');
+  }
+}
+
 function sameKind(a, b) {
   return a.suit === b.suit && a.rank === b.rank;
 }
@@ -451,6 +791,10 @@ function ensureNoPendingReactions(state) {
   if (state.pendingReactions) {
     throw new Error('REACTIONS_PENDING');
   }
+}
+
+function isMenQing(player) {
+  return player.melds.every((meld) => meld.type === 'an_gang');
 }
 
 function getPlayer(state, seat) {

@@ -664,10 +664,11 @@ function formatSettlementEvent(event) {
       qiang_gang_hu: '抢杠胡'
     };
     const mode = winModeMap[event.winMode] || event.winMode;
+    const fanDetail = formatFanDetail(event);
     if (event.winMode === 'zi_mo') {
-      return `${mode}: 座位${event.winnerSeat} 获得 ${event.amount} x ${event.payerCount || 0}，番数=${event.fan}`;
+      return `${mode}: 座位${event.winnerSeat} 获得 ${event.amount} x ${event.payerCount || 0}，番数=${event.fan}；${fanDetail}`;
     }
-    return `${mode}: 座位${event.winnerSeat} <- 座位${event.fromSeat}，${event.amount} 分，番数=${event.fan}`;
+    return `${mode}: 座位${event.winnerSeat} <- 座位${event.fromSeat}，${event.amount} 分，番数=${event.fan}；${fanDetail}`;
   }
 
   if (event.type === 'gang') {
@@ -684,6 +685,63 @@ function formatSettlementEvent(event) {
   }
 
   return JSON.stringify(event);
+}
+
+function formatFanDetail(event) {
+  const fanByPattern = {
+    ping_hu: 1,
+    peng_peng_hu: 2,
+    qi_dui: 2,
+    long_qi_dui: 4,
+    jiang_dui: 4,
+    yao_jiu: 4,
+    qing_yi_se: 4,
+    zi_mo: 1,
+    men_qing: 1,
+    gang_shang_hua: 1,
+    gang_shang_pao: 1,
+    qiang_gang_hu: 1,
+    hai_di_lao_yue: 1,
+    hai_di_pao: 1,
+    tian_hu: 6,
+    di_hu: 6
+  };
+
+  const patternName = {
+    ping_hu: '平胡',
+    peng_peng_hu: '碰碰胡',
+    qi_dui: '七对',
+    long_qi_dui: '龙七对',
+    jiang_dui: '将对',
+    yao_jiu: '幺九',
+    qing_yi_se: '清一色',
+    zi_mo: '自摸',
+    men_qing: '门清',
+    gang_shang_hua: '杠上花',
+    gang_shang_pao: '杠上炮',
+    qiang_gang_hu: '抢杠胡',
+    hai_di_lao_yue: '海底捞月',
+    hai_di_pao: '海底炮',
+    tian_hu: '天胡',
+    di_hu: '地胡'
+  };
+
+  const patterns = event.patterns || [];
+  if (patterns.length === 0) {
+    return `牌型明细：未知，按 ${event.fan} 番结算`;
+  }
+
+  const terms = patterns.map((key) => {
+    const name = patternName[key] || key;
+    const fan = fanByPattern[key];
+    return fan ? `${name}(${fan}番)` : name;
+  });
+  const rawFan = event.rawFan ?? event.fan;
+  const cappedFan = event.fan;
+  if (rawFan !== cappedFan) {
+    return `牌型：${terms.join(' + ')} => 原始${rawFan}番，封顶后${cappedFan}番`;
+  }
+  return `牌型：${terms.join(' + ')} => 合计${cappedFan}番`;
 }
 
 function formatMeld(meld) {

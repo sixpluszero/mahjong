@@ -17,6 +17,7 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  overflow-x: hidden;
 }
 
 .page {
@@ -36,6 +37,7 @@ h1, h2, h3 {
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 14px;
+  overflow-x: hidden;
 }
 
 .row {
@@ -103,6 +105,9 @@ button.danger {
   padding: 8px;
   background: #fafbfc;
   margin: 0 0 10px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 #activeRooms {
@@ -130,9 +135,39 @@ button.danger {
 }
 
 .tile {
-  min-width: 44px;
+  min-width: 54px;
   text-align: center;
   position: relative;
+  padding: 4px 6px;
+}
+
+.tile-visual {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.05;
+}
+
+.tile-visual.compact {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+}
+
+.tile-glyph {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.tile-visual.compact .tile-glyph {
+  font-size: 18px;
+  margin-right: 2px;
+}
+
+.tile-text {
+  font-size: 11px;
+  color: #455463;
+  margin-top: 2px;
 }
 
 .tile.selected {
@@ -200,6 +235,9 @@ button:disabled {
   padding: 8px;
   background: #fafbfc;
   margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 #discards {
@@ -215,6 +253,9 @@ button:disabled {
   padding: 4px 6px;
   background: #fbfcfe;
   font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .discard.claimed {

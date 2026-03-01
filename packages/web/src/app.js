@@ -292,7 +292,7 @@ function renderPlayers() {
       const huText = gamePlayer?.hasHu ? '已胡' : '未胡';
       if (hasGame) {
         const role = p.isBot ? '机器人' : '玩家';
-        return `座位 ${p.seat}: ${p.name}(${role}) | 总分=${p.totalScore ?? 0} | 缺门=${lackText} | ${huText} | 副露=${meldText}`;
+        return `座位 ${p.seat}: ${p.name}(${role}) | 总分=${p.totalScore ?? 0} | 缺门=${lackText} | ${huText} | 碰杠=${meldText}`;
       }
       const role = p.isBot ? '机器人' : '玩家';
       return `座位 ${p.seat}: ${p.name}(${role}) | 总分=${p.totalScore ?? 0} | 准备=${p.ready ? '已准备' : '未准备'}`;
@@ -374,8 +374,9 @@ function renderHand() {
   const highlightLatest = shouldHighlightLatestDraw();
 
   for (const tile of renderHand) {
-    const btn = createButton(tileLabel(tile));
+    const btn = createButton('');
     btn.className = 'tile';
+    btn.appendChild(createTileVisual(tile, { compact: false }));
     const isSelected = state.exchangeSelection.includes(tile.id);
     if (isSelected) {
       btn.classList.add('selected');
@@ -428,7 +429,15 @@ function renderDiscards() {
     const node = document.createElement('div');
     node.className = `discard${item.claimed ? ' claimed' : ''}`;
     const claimedText = item.claimed ? '（已被响应）' : '';
-    node.textContent = `座位${item.seat}: ${tileLabel(item.tile)}${claimedText}`;
+    const seatText = document.createElement('span');
+    seatText.textContent = `座位${item.seat}: `;
+    node.appendChild(seatText);
+    node.appendChild(createTileVisual(item.tile, { compact: true }));
+    if (claimedText) {
+      const claimNode = document.createElement('span');
+      claimNode.textContent = claimedText;
+      node.appendChild(claimNode);
+    }
     frag.appendChild(node);
   }
 
@@ -704,7 +713,39 @@ function tileLabel(tile) {
     tiao: '条',
     tong: '筒'
   };
-  return `${tile.rank}${suitMap[tile.suit]}`;
+  return `${tileGlyph(tile)} ${tile.rank}${suitMap[tile.suit]}`;
+}
+
+function tileGlyph(tile) {
+  const offsets = {
+    wan: 0x1F007,
+    tiao: 0x1F010,
+    tong: 0x1F019
+  };
+  const start = offsets[tile.suit];
+  if (!start || tile.rank < 1 || tile.rank > 9) {
+    return '🀫';
+  }
+  return String.fromCodePoint(start + tile.rank - 1);
+}
+
+function createTileVisual(tile, { compact }) {
+  const wrap = document.createElement('span');
+  wrap.className = `tile-visual${compact ? ' compact' : ''}`;
+
+  const glyph = document.createElement('span');
+  glyph.className = 'tile-glyph';
+  glyph.textContent = tileGlyph(tile);
+  wrap.appendChild(glyph);
+
+  if (!compact) {
+    const text = document.createElement('span');
+    text.className = 'tile-text';
+    text.textContent = `${tile.rank}${suitName(tile.suit)}`;
+    wrap.appendChild(text);
+  }
+
+  return wrap;
 }
 
 function logStatus(message) {

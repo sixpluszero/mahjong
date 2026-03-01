@@ -411,7 +411,7 @@ function handleDisconnect(socket) {
     room.rematchReadySeats.delete(client.seat);
   }
 
-  if (room.players.every((player) => !player)) {
+  if (shouldCloseRoom(room)) {
     if (room.botActionTimer) {
       clearTimeout(room.botActionTimer);
       room.botActionTimer = null;
@@ -1041,6 +1041,10 @@ function createRoomId() {
 function listActiveRooms() {
   const out = [];
   for (const room of rooms.values()) {
+    if (!roomHasHumanPlayers(room)) {
+      continue;
+    }
+
     const occupiedSeats = room.players
       .map((player, seat) => (player ? seat : null))
       .filter((seat) => seat !== null);
@@ -1061,6 +1065,14 @@ function listActiveRooms() {
 
   out.sort((a, b) => b.occupied - a.occupied || a.roomId.localeCompare(b.roomId));
   return out;
+}
+
+function roomHasHumanPlayers(room) {
+  return room.players.some((player) => player && !player.isBot);
+}
+
+function shouldCloseRoom(room) {
+  return room.players.every((player) => !player) || !roomHasHumanPlayers(room);
 }
 
 function getLanIpv4Addresses() {

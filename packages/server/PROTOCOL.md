@@ -15,11 +15,14 @@ Server URL: `ws://localhost:8787`
 - `bu_gang`: `{ tileId: string }`
 - `react`: `{ action: 'hu'|'gang'|'peng'|'pass' }`
 - `get_state`: `{}`
+- `list_rooms`: `{}`
+- `request_rematch`: `{}`
 
 ## Server -> Client
 - `welcome`: `{ clientId, now }`
 - `hello_ack`: `{ clientId, name }`
-- `room_state`: `{ roomId, hasGame, players[] }`
+- `room_state`: `{ roomId, hasGame, phase, rematchReadySeats, players[] }`
+- `rooms_list`: `{ rooms: [{ roomId, occupied, capacity, hasGame, phase, canJoin }] }`
 - `game_state`: `{ roomId, you, state, pendingReaction }`
 - `error`: `{ code }`
 

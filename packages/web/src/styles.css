@@ -74,6 +74,17 @@ button.danger {
   margin-bottom: 8px;
 }
 
+#diag {
+  white-space: pre-wrap;
+  font-size: 12px;
+  color: #4a5a6b;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  margin-bottom: 8px;
+  background: #fbfcff;
+}
+
 #players,
 #gameInfo,
 #roomInfo,
@@ -81,6 +92,24 @@ button.danger {
   white-space: pre-wrap;
   font-size: 14px;
   line-height: 1.5;
+}
+
+#activeRooms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.room-chip {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: #fdfefe;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 #hand {

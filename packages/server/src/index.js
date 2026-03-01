@@ -1,5 +1,6 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
+import { networkInterfaces } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
@@ -17,6 +18,7 @@ import {
 } from '@mahjong/shared';
 
 const PORT = Number(process.env.PORT ?? 8787);
+const HOST = process.env.HOST ?? '0.0.0.0';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const WEB_ROOT = path.resolve(__dirname, '../../web/src');
@@ -85,8 +87,12 @@ wss.on('connection', (socket) => {
   });
 });
 
-httpServer.listen(PORT, () => {
-  console.log(`Mahjong WebSocket server listening on :${PORT}`);
+httpServer.listen(PORT, HOST, () => {
+  const lanIps = getLanIpv4Addresses();
+  const lanHint = lanIps.length > 0
+    ? ` | LAN: ${lanIps.map((ip) => `http://${ip}:${PORT}`).join(', ')}`
+    : '';
+  console.log(`Mahjong WebSocket server listening on ${HOST}:${PORT}${lanHint}`);
 });
 
 function handleIncoming(socket, raw) {
@@ -143,6 +149,12 @@ function handleIncoming(socket, raw) {
       case 'get_state':
         handleGetState(client);
         return;
+      case 'list_rooms':
+        handleListRooms(client);
+        return;
+      case 'request_rematch':
+        handleRequestRematch(client);
+        return;
       default:
         sendError(socket, 'UNKNOWN_MESSAGE_TYPE');
     }
@@ -187,7 +199,8 @@ function handleCreateRoom(client) {
     id: roomId,
     players: new Array(4).fill(null),
     game: null,
-    reactionIntents: new Map()
+    reactionIntents: new Map(),
+    rematchReadySeats: new Set()
   };
 
   rooms.set(roomId, room);
@@ -321,6 +334,31 @@ function handleGetState(client) {
   }
 }
 
+function handleListRooms(client) {
+  send(client.socket, 'rooms_list', {
+    rooms: listActiveRooms()
+  });
+}
+
+function handleRequestRematch(client) {
+  const room = requireRoom(client);
+  if (!room.game || room.game.phase !== 'settlement') {
+    throw new Error('REMATCH_NOT_AVAILABLE');
+  }
+
+  room.rematchReadySeats.add(client.seat);
+  emitRoomState(room);
+
+  const activeSeats = room.players
+    .map((player, seat) => (player ? seat : null))
+    .filter((seat) => seat !== null);
+  const allAccepted = activeSeats.every((seat) => room.rematchReadySeats.has(seat));
+
+  if (allAccepted) {
+    startGame(room);
+  }
+}
+
 function handleDisconnect(socket) {
   const client = connections.get(socket);
   if (!client) {
@@ -340,6 +378,7 @@ function handleDisconnect(socket) {
   const seatState = room.players[client.seat];
   if (seatState && seatState.clientId === client.id) {
     room.players[client.seat] = null;
+    room.rematchReadySeats.delete(client.seat);
   }
 
   if (room.players.every((player) => !player)) {
@@ -357,6 +396,7 @@ function canStart(room) {
 function startGame(room) {
   room.game = createInitialGame();
   room.reactionIntents.clear();
+  room.rematchReadySeats.clear();
 
   for (const player of room.players) {
     player.ready = false;
@@ -383,6 +423,8 @@ function emitRoomState(room) {
   const payload = {
     roomId: room.id,
     hasGame: Boolean(room.game),
+    phase: room.game?.phase ?? null,
+    rematchReadySeats: [...room.rematchReadySeats],
     players: room.players.map((player, seat) => {
       if (!player) {
         return {
@@ -587,4 +629,42 @@ function createRoomId() {
   }
 
   return code;
+}
+
+function listActiveRooms() {
+  const out = [];
+  for (const room of rooms.values()) {
+    const occupiedSeats = room.players
+      .map((player, seat) => (player ? seat : null))
+      .filter((seat) => seat !== null);
+
+    if (occupiedSeats.length === 0) {
+      continue;
+    }
+
+    out.push({
+      roomId: room.id,
+      occupied: occupiedSeats.length,
+      capacity: 4,
+      hasGame: Boolean(room.game),
+      phase: room.game?.phase ?? null,
+      canJoin: occupiedSeats.length < 4
+    });
+  }
+
+  out.sort((a, b) => b.occupied - a.occupied || a.roomId.localeCompare(b.roomId));
+  return out;
+}
+
+function getLanIpv4Addresses() {
+  const out = [];
+  const nets = networkInterfaces();
+  for (const ifaces of Object.values(nets)) {
+    for (const info of ifaces ?? []) {
+      if (info.family === 'IPv4' && !info.internal) {
+        out.push(info.address);
+      }
+    }
+  }
+  return [...new Set(out)];
 }

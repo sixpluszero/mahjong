@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "node src/index.js",
-    "client": "node scripts/debug-client.js"
+    "client": "node scripts/debug-client.js",
+    "stress": "node scripts/stress-random.mjs"
   },
   "dependencies": {
     "@mahjong/shared": "0.1.0",

@@ -14,6 +14,8 @@ Quick start:
 - `npm run dev:server`
 - Open browser: `http://localhost:8787`
 - You can open 4 tabs/windows, set different names, join same room, and play manually.
+- Random stress test (4 websocket bots, 10 rounds):
+  - `npm run stress`
 - Optional bot debug:
   - `npm run dev:client`
   - `ROOM_ID=<room_id_from_logs> npm run dev:client`

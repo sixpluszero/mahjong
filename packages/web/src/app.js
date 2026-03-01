@@ -9,7 +9,14 @@ const state = {
   gameState: null,
   you: null,
   pendingReaction: null,
-  connected: false
+  connected: false,
+  notice: '',
+  exchangeSelection: [],
+  exchangeSubmitted: false,
+  lackSubmitted: false,
+  lastKnownHandIds: [],
+  latestDrawTileId: null,
+  latestDrawAt: 0
 };
 
 const el = {
@@ -26,6 +33,7 @@ const el = {
   actionBar: document.querySelector('#actionBar'),
   hand: document.querySelector('#hand'),
   melds: document.querySelector('#melds'),
+  discards: document.querySelector('#discards'),
   events: document.querySelector('#events')
 };
 
@@ -33,7 +41,7 @@ el.nameInput.value = state.name;
 
 ws.addEventListener('open', () => {
   state.connected = true;
-  render();
+  safeRender();
 
   if (state.name) {
     send('hello', { name: state.name });
@@ -42,55 +50,66 @@ ws.addEventListener('open', () => {
 
 ws.addEventListener('close', (event) => {
   state.connected = false;
-  logStatus(`连接已断开 code=${event.code} reason=${event.reason || '(none)'}`);
-  render();
+  setNotice(`连接已断开 code=${event.code} reason=${event.reason || '(none)'}`);
+  safeRender();
 });
 
 ws.addEventListener('message', (event) => {
-  const { type, payload } = JSON.parse(event.data);
+  try {
+    const { type, payload } = JSON.parse(event.data);
 
-  if (type === 'welcome') {
-    state.clientId = payload.clientId;
+    if (type === 'welcome') {
+      state.clientId = payload.clientId;
+    }
+
+    if (type === 'hello_ack') {
+      state.name = payload.name;
+      localStorage.setItem('mj_name', state.name);
+      setNotice(`昵称已设置：${state.name}`);
+    }
+
+    if (type === 'room_state') {
+      state.roomState = payload;
+      state.roomId = payload.roomId;
+    }
+
+    if (type === 'game_state') {
+      const prevPhase = state.gameState?.phase;
+      state.gameState = payload.state;
+      state.you = payload.you;
+      state.pendingReaction = payload.pendingReaction;
+      trackLatestDraw();
+      onPhaseChange(prevPhase, state.gameState?.phase);
+    }
+
+    if (type === 'error') {
+      setNotice(`错误：${payload.code}`);
+    }
+
+    safeRender();
+  } catch (err) {
+    setNotice(`消息处理异常: ${err?.message || String(err)}`);
+    console.error('[message_handler_error]', err);
+    safeRender();
   }
-
-  if (type === 'hello_ack') {
-    state.name = payload.name;
-    localStorage.setItem('mj_name', state.name);
-    logStatus(`昵称已设置：${state.name}`);
-  }
-
-  if (type === 'room_state') {
-    state.roomState = payload;
-    state.roomId = payload.roomId;
-  }
-
-  if (type === 'game_state') {
-    state.gameState = payload.state;
-    state.you = payload.you;
-    state.pendingReaction = payload.pendingReaction;
-  }
-
-  if (type === 'error') {
-    logStatus(`错误：${payload.code}`);
-  }
-
-  render();
 });
 
 window.addEventListener('error', (event) => {
-  logStatus(`前端异常: ${event.message}`);
+  setNotice(`前端异常: ${event.message}`);
   console.error('[ui_error]', event.error || event.message);
+  safeRender();
 });
 
 window.addEventListener('unhandledrejection', (event) => {
-  logStatus(`前端Promise异常: ${event.reason?.message || String(event.reason)}`);
+  setNotice(`前端Promise异常: ${event.reason?.message || String(event.reason)}`);
   console.error('[ui_rejection]', event.reason);
+  safeRender();
 });
 
 el.helloBtn.addEventListener('click', () => {
   const name = el.nameInput.value.trim();
   if (!name) {
-    logStatus('请输入昵称');
+    setNotice('请输入昵称');
     return;
   }
 
@@ -104,7 +123,7 @@ el.createRoomBtn.addEventListener('click', () => {
 el.joinRoomBtn.addEventListener('click', () => {
   const roomId = el.roomIdInput.value.trim().toUpperCase();
   if (!roomId) {
-    logStatus('请输入房间号');
+    setNotice('请输入房间号');
     return;
   }
 
@@ -118,29 +137,40 @@ el.readyBtn.addEventListener('click', () => {
 function render() {
   const seat = state.you?.seat;
   const phase = state.gameState?.phase || '未开局';
+  const roomStatus = state.roomState?.hasGame ? '已开局' : '等待准备';
 
-  el.status.textContent = state.connected
+  const base = state.connected
     ? `已连接 ${wsUrl} | clientId=${state.clientId || '-'} | 昵称=${state.name || '-'}`
     : '未连接';
+  el.status.textContent = state.notice ? `${base}\n${state.notice}` : base;
 
-  el.roomInfo.textContent = `房间号：${state.roomId || '-'} | 阶段：${phase} | 我的座位：${seat ?? '-'} | 我的分数：${state.you?.score ?? '-'}`;
+  el.roomInfo.textContent = `房间号：${state.roomId || '-'} | 房间状态：${roomStatus} | 阶段：${phase} | 我的座位：${seat ?? '-'} | 我的分数：${state.you?.score ?? '-'}`;
 
   renderPlayers();
   renderGameInfo();
   renderHand();
   renderMelds();
+  renderDiscards();
   renderActionBar();
   renderEvents();
 }
 
 function renderPlayers() {
   const players = state.roomState?.players || [];
+  const hasGame = Boolean(state.roomState?.hasGame);
   el.players.textContent = players
     .map((p) => {
       if (!p.occupied) {
         return `座位 ${p.seat}: 空`;
       }
-      return `座位 ${p.seat}: ${p.name} | ready=${p.ready}`;
+      const gamePlayer = state.gameState?.players?.find((gp) => gp.seat === p.seat);
+      const meldText = renderMeldSummary(gamePlayer?.melds || []);
+      const lackText = gamePlayer?.lackSuit ? suitName(gamePlayer.lackSuit) : '-';
+      const huText = gamePlayer?.hasHu ? '已胡' : '未胡';
+      if (hasGame) {
+        return `座位 ${p.seat}: ${p.name} | 缺门=${lackText} | ${huText} | 副露=${meldText}`;
+      }
+      return `座位 ${p.seat}: ${p.name} | 准备=${p.ready ? '已准备' : '未准备'}`;
     })
     .join('\n');
 }
@@ -164,22 +194,63 @@ function renderGameInfo() {
   el.gameInfo.textContent = [
     `当前出牌座位: ${state.gameState.turnSeat}`,
     `我是否已胡: ${me.hasHu}`,
-    `我的定缺: ${me.lackSuit || '-'}`,
+    `我的定缺: ${me.lackSuit ? suitName(me.lackSuit) : '-'}`,
     `剩余牌墙: ${state.gameState.wallRemaining}`,
     `终局原因: ${state.gameState.settlementReason || '-'}`
   ].join('\n');
 }
 
 function renderHand() {
-  el.hand.innerHTML = '';
   const hand = state.you?.hand || [];
+  const phase = state.gameState?.phase;
+  const globalPendingReactions = Boolean(state.gameState?.pendingReactions);
+  const canDiscardNow = Boolean(
+    state.gameState
+    && state.you
+    && state.gameState.phase === 'play'
+    && state.gameState.turnSeat === state.you.seat
+    && !globalPendingReactions
+    && !state.pendingReaction
+  );
+  const frag = document.createDocumentFragment();
 
-  for (const tile of hand) {
+  const renderHand = reorderHandByLatestDraw(hand);
+  const highlightLatest = shouldHighlightLatestDraw();
+
+  for (const tile of renderHand) {
     const btn = createButton(tileLabel(tile));
     btn.className = 'tile';
-    btn.addEventListener('click', () => send('discard', { tileId: tile.id }));
-    el.hand.appendChild(btn);
+    const isSelected = state.exchangeSelection.includes(tile.id);
+    if (isSelected) {
+      btn.classList.add('selected');
+    }
+    if (highlightLatest && tile.id === state.latestDrawTileId) {
+      btn.classList.add('new-draw');
+    }
+    btn.disabled = !(canDiscardNow || phase === 'exchange');
+    btn.addEventListener('click', (event) => {
+      event.preventDefault();
+      if (phase === 'exchange') {
+        toggleExchangeTile(tile);
+        safeRender();
+        return;
+      }
+      if (!canDiscardNow) {
+        if (globalPendingReactions) {
+          setNotice('当前有他人操作响应中，请等待');
+        } else {
+          setNotice(`当前阶段为 ${state.gameState?.phase || 'unknown'}，不能出牌`);
+        }
+        safeRender();
+        return;
+      }
+      state.latestDrawTileId = null;
+      state.latestDrawAt = 0;
+      send('discard', { tileId: tile.id });
+    });
+    frag.appendChild(btn);
   }
+  el.hand.replaceChildren(frag);
 }
 
 function renderMelds() {
@@ -189,13 +260,70 @@ function renderMelds() {
     return;
   }
 
-  el.melds.textContent = melds.map((m) => `${m.type}: ${tileLabel(m.tile)}`).join('\n');
+  el.melds.textContent = melds.map(formatMeld).join('\n');
+}
+
+function renderDiscards() {
+  const discards = state.gameState?.discardPool || [];
+  const reversed = [...discards].reverse();
+  const frag = document.createDocumentFragment();
+
+  for (const item of reversed) {
+    const node = document.createElement('div');
+    node.className = `discard${item.claimed ? ' claimed' : ''}`;
+    const claimedText = item.claimed ? '（已被响应）' : '';
+    node.textContent = `座位${item.seat}: ${tileLabel(item.tile)}${claimedText}`;
+    frag.appendChild(node);
+  }
+
+  if (reversed.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'discard';
+    empty.textContent = '暂无弃牌';
+    frag.appendChild(empty);
+  }
+
+  el.discards.replaceChildren(frag);
 }
 
 function renderActionBar() {
   el.actionBar.innerHTML = '';
 
   if (!state.gameState || !state.you) {
+    return;
+  }
+
+  if (state.gameState.phase === 'exchange') {
+    const submit = createButton(`提交换三张 (${state.exchangeSelection.length}/3)`);
+    submit.className = 'primary';
+    submit.disabled = state.exchangeSubmitted || !isValidExchangeSelection(state.you.hand, state.exchangeSelection);
+    submit.addEventListener('click', () => {
+      if (!isValidExchangeSelection(state.you.hand, state.exchangeSelection)) {
+        setNotice('换三张必须选择 3 张同花色手牌');
+        safeRender();
+        return;
+      }
+      send('submit_exchange', { tileIds: [...state.exchangeSelection] });
+      state.exchangeSubmitted = true;
+      setNotice('已提交换三张，等待其他玩家');
+      safeRender();
+    });
+    el.actionBar.appendChild(submit);
+    return;
+  }
+
+  if (state.gameState.phase === 'lack') {
+    for (const lackSuit of ['wan', 'tiao', 'tong']) {
+      const btn = createButton(`定缺 ${suitName(lackSuit)}`);
+      btn.disabled = state.lackSubmitted;
+      btn.addEventListener('click', () => {
+        send('set_lack', { lackSuit });
+        state.lackSubmitted = true;
+        setNotice(`已提交定缺 ${suitName(lackSuit)}，等待其他玩家`);
+        safeRender();
+      });
+      el.actionBar.appendChild(btn);
+    }
     return;
   }
 
@@ -207,8 +335,8 @@ function renderActionBar() {
 
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.textContent = `响应: ${action}`;
-      btn.className = action === 'hu' ? 'primary' : '';
+      btn.textContent = `响应: ${actionText(action)}`;
+      btn.className = `reaction-btn ${action === 'hu' ? 'primary' : ''}`.trim();
       btn.addEventListener('click', () => send('react', { action }));
       el.actionBar.appendChild(btn);
     }
@@ -272,6 +400,98 @@ function findBuGangCandidates(hand, melds) {
   return candidates;
 }
 
+function toggleExchangeTile(tile) {
+  if (state.exchangeSubmitted) {
+    return;
+  }
+
+  const id = tile.id;
+  const selected = state.exchangeSelection;
+  if (selected.includes(id)) {
+    state.exchangeSelection = selected.filter((x) => x !== id);
+    return;
+  }
+
+  if (selected.length >= 3) {
+    setNotice('最多只能选 3 张');
+    return;
+  }
+
+  const selectedTiles = state.you.hand.filter((t) => selected.includes(t.id));
+  if (selectedTiles.length > 0 && selectedTiles[0].suit !== tile.suit) {
+    setNotice('换三张必须同花色');
+    return;
+  }
+
+  state.exchangeSelection = [...selected, id];
+}
+
+function isValidExchangeSelection(hand, ids) {
+  if (ids.length !== 3) return false;
+  const tiles = hand.filter((t) => ids.includes(t.id));
+  if (tiles.length !== 3) return false;
+  return tiles.every((t) => t.suit === tiles[0].suit);
+}
+
+function onPhaseChange(prevPhase, nextPhase) {
+  if (prevPhase === nextPhase) return;
+  if (nextPhase === 'exchange') {
+    state.exchangeSelection = [];
+    state.exchangeSubmitted = false;
+    state.lackSubmitted = false;
+    state.latestDrawTileId = null;
+    state.latestDrawAt = 0;
+    state.lastKnownHandIds = state.you?.hand?.map((t) => t.id) || [];
+    return;
+  }
+  if (nextPhase === 'lack') {
+    state.exchangeSelection = [];
+    state.exchangeSubmitted = true;
+    state.lackSubmitted = false;
+    return;
+  }
+  if (nextPhase === 'play') {
+    state.exchangeSelection = [];
+    state.exchangeSubmitted = false;
+    state.lackSubmitted = false;
+  }
+}
+
+function suitName(suit) {
+  return suit === 'wan' ? '万' : suit === 'tiao' ? '条' : '筒';
+}
+
+function actionText(action) {
+  const map = {
+    hu: '胡',
+    gang: '杠',
+    peng: '碰',
+    pass: '过'
+  };
+  return map[action] || action;
+}
+
+function formatMeld(meld) {
+  const typeMap = {
+    peng: '碰',
+    ming_gang: '明杠',
+    bu_gang: '补杠',
+    an_gang: '暗杠'
+  };
+  const typeText = typeMap[meld.type] || meld.type;
+  if (meld.type === 'an_gang') {
+    return `${typeText}`;
+  }
+  return `${typeText}: ${tileLabel(meld.tile)}`;
+}
+
+function renderMeldSummary(melds) {
+  if (!melds || melds.length === 0) {
+    return '无';
+  }
+  return melds.map(formatMeld).join('、');
+}
+
 function tileLabel(tile) {
   const suitMap = {
     wan: '万',
@@ -282,16 +502,83 @@ function tileLabel(tile) {
 }
 
 function logStatus(message) {
-  el.status.textContent = message;
+  setNotice(message);
+  safeRender();
 }
 
 function send(type, payload) {
   if (ws.readyState !== 1) {
-    logStatus('连接未建立');
+    setNotice('连接未建立');
+    safeRender();
     return;
   }
 
   ws.send(JSON.stringify({ type, payload }));
+}
+
+function setNotice(message) {
+  state.notice = message;
+}
+
+function safeRender() {
+  try {
+    render();
+  } catch (err) {
+    state.notice = `渲染异常: ${err?.message || String(err)}`;
+    console.error('[render_error]', err);
+    el.status.textContent = state.notice;
+  }
+}
+
+function trackLatestDraw() {
+  if (!state.you?.hand) {
+    return;
+  }
+
+  const currentIds = state.you.hand.map((t) => t.id);
+  const prevSet = new Set(state.lastKnownHandIds);
+  const added = currentIds.filter((id) => !prevSet.has(id));
+
+  if (added.length === 1) {
+    state.latestDrawTileId = added[0];
+    state.latestDrawAt = Date.now();
+  } else if (added.length === 0) {
+    // hand size may stay the same during replacement-like updates, keep current marker.
+  } else {
+    // phase switch / sync jump, avoid wrong marker.
+    state.latestDrawTileId = null;
+    state.latestDrawAt = 0;
+  }
+
+  if (state.latestDrawTileId && !currentIds.includes(state.latestDrawTileId)) {
+    state.latestDrawTileId = null;
+    state.latestDrawAt = 0;
+  }
+
+  state.lastKnownHandIds = currentIds;
+}
+
+function reorderHandByLatestDraw(hand) {
+  if (!state.latestDrawTileId) {
+    return hand;
+  }
+
+  const idx = hand.findIndex((tile) => tile.id === state.latestDrawTileId);
+  if (idx === -1) {
+    return hand;
+  }
+
+  const arr = [...hand];
+  const [latest] = arr.splice(idx, 1);
+  arr.push(latest);
+  return arr;
+}
+
+function shouldHighlightLatestDraw() {
+  if (!state.latestDrawTileId || !state.latestDrawAt) {
+    return false;
+  }
+  return Date.now() - state.latestDrawAt <= 5000;
 }
 
 function createButton(text) {

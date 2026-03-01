@@ -8,6 +8,7 @@
   "scripts": {
     "test": "npm run test -w @mahjong/shared",
     "dev:server": "npm run dev -w @mahjong/server",
-    "dev:client": "npm run client -w @mahjong/server"
+    "dev:client": "npm run client -w @mahjong/server",
+    "stress": "STRESS_PORT=8899 STRESS_GAMES=10 STRESS_TIMEOUT_MS=30000 npm run stress -w @mahjong/server"
   }
 }

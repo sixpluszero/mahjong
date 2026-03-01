@@ -1,4 +1,4 @@
-import { calculateWinPayment, evaluateFans, isDiscardAllowed } from './rules.js';
+import { calculateWinPayment, evaluateFans, hasLackSuitTiles, isDiscardAllowed } from './rules.js';
 import { createDeck, parseTileCode, SUITS } from './tiles.js';
 
 const EXCHANGE_DIRECTIONS = ['clockwise', 'counterclockwise', 'across'];
@@ -283,16 +283,11 @@ export function declareSelfDrawHu(state, seat) {
     throw new Error('ALREADY_HU');
   }
 
-  const huResult = evaluateFans({
-    tiles: player.hand,
-    lackSuit: player.lackSuit,
-    context: {
-      selfDraw: true,
-      menQing: isMenQing(player),
-      kongDraw: Boolean(state.lastDraw?.seat === seat && state.lastDraw.fromKong),
-      lastTileDraw: Boolean(state.lastDraw?.seat === seat && state.lastDraw.lastTile)
-    },
-    config: state.config
+  const huResult = evaluateHuForPlayer(state, player, [], {
+    selfDraw: true,
+    menQing: isMenQing(player),
+    kongDraw: Boolean(state.lastDraw?.seat === seat && state.lastDraw.fromKong),
+    lastTileDraw: Boolean(state.lastDraw?.seat === seat && state.lastDraw.lastTile)
   });
 
   if (!huResult.canHu) {
@@ -496,17 +491,11 @@ function buildPendingReactions(state, fromSeat, tile, context = {}) {
     const sameKindCount = player.hand.filter((handTile) => sameKind(handTile, tile)).length;
     const canPeng = sameKindCount >= 2;
     const canGang = sameKindCount >= 3;
-    const candidateHand = [...player.hand, tile];
-    const huResult = evaluateFans({
-      tiles: candidateHand,
-      lackSuit: player.lackSuit,
-      context: {
-        selfDraw: false,
-        menQing: isMenQing(player),
-        kongPao: Boolean(context.kongPao),
-        lastTileDiscard: Boolean(context.lastTileDiscard)
-      },
-      config: state.config
+    const huResult = evaluateHuForPlayer(state, player, [tile], {
+      selfDraw: false,
+      menQing: isMenQing(player),
+      kongPao: Boolean(context.kongPao),
+      lastTileDiscard: Boolean(context.lastTileDiscard)
     });
 
     const canHu = huResult.canHu;
@@ -692,16 +681,10 @@ function buildRobKongOptions(state, fromSeat, tile) {
       continue;
     }
 
-    const candidateHand = [...player.hand, tile];
-    const huResult = evaluateFans({
-      tiles: candidateHand,
-      lackSuit: player.lackSuit,
-      context: {
-        selfDraw: false,
-        menQing: isMenQing(player),
-        robbedKong: true
-      },
-      config: state.config
+    const huResult = evaluateHuForPlayer(state, player, [tile], {
+      selfDraw: false,
+      menQing: isMenQing(player),
+      robbedKong: true
     });
 
     if (huResult.canHu) {
@@ -728,6 +711,44 @@ function applyBuGang(state, seat, tile) {
   removeTilesByMatcher(player.hand, (item) => sameKind(item, tile), 1);
   meld.type = 'bu_gang';
   settleBuGang(state, { winnerSeat: seat });
+}
+
+function evaluateHuForPlayer(state, player, extraTiles, context) {
+  if (hasLackSuitTiles(player.hand, player.lackSuit)) {
+    return {
+      canHu: false,
+      fan: 0,
+      cappedFan: 0,
+      multiplier: 0,
+      patterns: [],
+      reason: 'HAS_LACK_SUIT_TILES'
+    };
+  }
+
+  return evaluateFans({
+    tiles: buildWinEvalTiles(player, extraTiles),
+    lackSuit: null,
+    context,
+    config: state.config
+  });
+}
+
+function buildWinEvalTiles(player, extraTiles) {
+  const tiles = [...player.hand, ...extraTiles];
+
+  let syntheticIndex = 0;
+  for (const meld of player.melds) {
+    for (let i = 0; i < 3; i += 1) {
+      tiles.push({
+        suit: meld.tile.suit,
+        rank: meld.tile.rank,
+        id: `meld-${meld.type}-${syntheticIndex}`
+      });
+      syntheticIndex += 1;
+    }
+  }
+
+  return tiles;
 }
 
 function sortByDistanceFromSeat(seats, fromSeat) {

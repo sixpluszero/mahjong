@@ -44,7 +44,10 @@ const httpServer = createServer(async (req, res) => {
 
   try {
     const content = await readFile(path.join(WEB_ROOT, staticEntry.file));
-    res.writeHead(200, { 'content-type': staticEntry.type });
+    res.writeHead(200, {
+      'content-type': staticEntry.type,
+      'cache-control': 'no-store'
+    });
     res.end(content);
   } catch {
     res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
@@ -144,7 +147,21 @@ function handleIncoming(socket, raw) {
         sendError(socket, 'UNKNOWN_MESSAGE_TYPE');
     }
   } catch (error) {
-    sendError(socket, error.message || 'INTERNAL_ERROR');
+    const code = error?.message || 'INTERNAL_ERROR';
+    if (isBenignRaceError(code)) {
+      const room = tryGetRoom(client);
+      if (room?.game) {
+        emitGameState(room);
+      }
+      return;
+    }
+
+    console.error('[ws_message_error]', {
+      type,
+      payload,
+      error: error?.stack || code || String(error)
+    });
+    sendError(socket, code);
   }
 }
 
@@ -478,6 +495,13 @@ function requireRoom(client) {
   return room;
 }
 
+function tryGetRoom(client) {
+  if (!client.roomId) {
+    return null;
+  }
+  return rooms.get(client.roomId) ?? null;
+}
+
 function requireGameRoom(client, expectedPhase) {
   const room = requireRoom(client);
   if (!room.game) {
@@ -519,6 +543,19 @@ function normalizeReaction(action) {
   }
 
   return normalized;
+}
+
+function isBenignRaceError(code) {
+  if (!code) {
+    return false;
+  }
+
+  return (
+    code === 'NOT_YOUR_TURN'
+    || code === 'REACTIONS_PENDING'
+    || code === 'TILE_NOT_IN_HAND'
+    || code.startsWith('INVALID_GAME_PHASE')
+  );
 }
 
 function send(socket, type, payload = {}) {

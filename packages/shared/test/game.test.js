@@ -296,6 +296,29 @@ test('declareSelfDrawHu settles from all active opponents', () => {
   assert.equal(game.settlementEvents.at(-1).winMode, 'zi_mo');
 });
 
+test('declareSelfDrawHu works with open melds + small concealed hand', () => {
+  const game = createInitialGame({ dealerSeat: 3, baseScore: 1 });
+  game.phase = 'play';
+  game.turnSeat = 3;
+
+  game.players[3].hand = makeTiles(['w2', 'w3', 'w4', 't4', 't4'], 'open-hu');
+  game.players[3].melds = [
+    { type: 'peng', tile: tileFromCode('w7', 'm1'), fromDiscard: true },
+    { type: 'ming_gang', tile: tileFromCode('t2', 'm2'), fromDiscard: true },
+    { type: 'peng', tile: tileFromCode('w1', 'm3'), fromDiscard: true }
+  ];
+  game.players[3].lackSuit = 'tong';
+
+  game.players[0].lackSuit = 'wan';
+  game.players[1].lackSuit = 'wan';
+  game.players[2].lackSuit = 'wan';
+
+  declareSelfDrawHu(game, 3);
+
+  assert.equal(game.players[3].hasHu, true);
+  assert.equal(game.settlementEvents.at(-1).winMode, 'zi_mo');
+});
+
 test('declareAnGang awards gang score and draws from tail', () => {
   const game = createInitialGame({ dealerSeat: 0 });
   game.phase = 'play';

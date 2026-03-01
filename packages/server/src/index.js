@@ -125,6 +125,9 @@ function handleIncoming(socket, raw) {
       case 'join_room':
         handleJoinRoom(client, payload);
         return;
+      case 'resume_room':
+        handleResumeRoom(client, payload);
+        return;
       case 'set_ready':
         handleSetReady(client, payload);
         return;
@@ -250,6 +253,55 @@ function handleSetReady(client, payload) {
 
   if (canStart(room)) {
     startGame(room);
+  }
+}
+
+function handleResumeRoom(client, payload) {
+  ensureNoRoom(client);
+
+  const roomId = String(payload.roomId ?? '').trim().toUpperCase();
+  const seat = Number(payload.seat);
+  const resumeToken = String(payload.resumeToken ?? '').trim();
+
+  const room = rooms.get(roomId);
+  if (!room) {
+    throw new Error('ROOM_NOT_FOUND');
+  }
+  if (!Number.isInteger(seat) || seat < 0 || seat > 3) {
+    throw new Error('INVALID_SEAT');
+  }
+  if (!resumeToken) {
+    throw new Error('RESUME_TOKEN_REQUIRED');
+  }
+
+  const seatState = room.players[seat];
+  if (!seatState || seatState.isBot) {
+    throw new Error('RESUME_NOT_ALLOWED');
+  }
+  if (seatState.resumeToken !== resumeToken) {
+    throw new Error('RESUME_TOKEN_INVALID');
+  }
+
+  const oldConn = seatState.clientId ? findConnectionById(seatState.clientId) : null;
+  if (oldConn && oldConn.socket !== client.socket) {
+    try {
+      oldConn.socket.close(4001, 'session replaced');
+    } catch {
+      // ignore close race
+    }
+  }
+
+  bindClientToSeat(room, client, seatState);
+  seatState.online = true;
+  seatState.auto = false;
+  send(client.socket, 'resume_ack', {
+    roomId: room.id,
+    seat: seatState.seat,
+    name: seatState.name
+  });
+  emitRoomState(room);
+  if (room.game) {
+    emitGameState(room);
   }
 }
 
@@ -407,8 +459,14 @@ function handleDisconnect(socket) {
 
   const seatState = room.players[client.seat];
   if (seatState && seatState.clientId === client.id) {
-    room.players[client.seat] = null;
-    room.rematchReadySeats.delete(client.seat);
+    if (seatState.isBot || !room.game) {
+      room.players[client.seat] = null;
+      room.rematchReadySeats.delete(client.seat);
+    } else {
+      seatState.clientId = null;
+      seatState.online = false;
+      seatState.auto = true;
+    }
   }
 
   if (shouldCloseRoom(room)) {
@@ -421,6 +479,9 @@ function handleDisconnect(socket) {
   }
 
   emitRoomState(room);
+  if (room.game) {
+    emitGameState(room);
+  }
 }
 
 function canStart(room) {
@@ -447,18 +508,33 @@ function startGame(room) {
 }
 
 function seatClient(room, client, seat) {
-  room.players[seat] = {
-    clientId: client.id,
+  const seatState = {
+    clientId: null,
     isBot: false,
     name: client.name,
     seat,
     ready: false,
     totalScore: 0,
-    online: true
+    online: true,
+    auto: false,
+    resumeToken: createId('r')
   };
 
+  room.players[seat] = seatState;
+  bindClientToSeat(room, client, seatState);
+}
+
+function bindClientToSeat(room, client, seatState) {
+  seatState.clientId = client.id;
   client.roomId = room.id;
-  client.seat = seat;
+  client.seat = seatState.seat;
+  client.name = seatState.name;
+  send(client.socket, 'seat_assigned', {
+    roomId: room.id,
+    seat: seatState.seat,
+    name: seatState.name,
+    resumeToken: seatState.resumeToken ?? null
+  });
 }
 
 function seatBot(room, seat) {
@@ -469,7 +545,9 @@ function seatBot(room, seat) {
     seat,
     ready: true,
     totalScore: 0,
-    online: true
+    online: true,
+    auto: false,
+    resumeToken: null
   };
 }
 
@@ -497,7 +575,8 @@ function emitRoomState(room) {
         name: player.name,
         ready: player.ready,
         totalScore: player.totalScore ?? 0,
-        online: true
+        online: Boolean(player.online),
+        auto: Boolean(player.auto)
       };
     })
   };
@@ -602,6 +681,9 @@ function describePendingForSeat(pending, seat) {
 }
 
 function findConnectionById(clientId) {
+  if (!clientId) {
+    return null;
+  }
   for (const client of connections.values()) {
     if (client.id === clientId) {
       return client;
@@ -711,7 +793,7 @@ function canStartRematch(room) {
 }
 
 function scheduleBotAction(room) {
-  if (!room || room.botActionTimer || !room.players.some((player) => player?.isBot)) {
+  if (!room || room.botActionTimer || !room.players.some((player) => isAutoPilotPlayer(player))) {
     return;
   }
 
@@ -722,7 +804,7 @@ function scheduleBotAction(room) {
 }
 
 function processBotAction(room) {
-  if (!room || !rooms.has(room.id) || !room.players.some((player) => player?.isBot)) {
+  if (!room || !rooms.has(room.id) || !room.players.some((player) => isAutoPilotPlayer(player))) {
     return;
   }
 
@@ -733,7 +815,7 @@ function processBotAction(room) {
   if (room.game.phase === 'settlement') {
     let changed = false;
     for (const player of room.players) {
-      if (!player?.isBot) {
+      if (!isAutoPilotPlayer(player)) {
         continue;
       }
       if (!room.rematchReadySeats.has(player.seat)) {
@@ -756,7 +838,7 @@ function processBotAction(room) {
 
   if (room.game.phase === 'exchange') {
     for (const player of room.players) {
-      if (!player?.isBot) {
+      if (!isAutoPilotPlayer(player)) {
         continue;
       }
       if (room.game.players[player.seat].exchangeSelection) {
@@ -773,7 +855,7 @@ function processBotAction(room) {
 
   if (room.game.phase === 'lack') {
     for (const player of room.players) {
-      if (!player?.isBot) {
+      if (!isAutoPilotPlayer(player)) {
         continue;
       }
       if (room.game.players[player.seat].lackSuit) {
@@ -796,7 +878,7 @@ function processBotAction(room) {
     let changed = false;
     for (const option of pending.options) {
       const roomPlayer = room.players[option.seat];
-      if (!roomPlayer?.isBot || room.reactionIntents.has(option.seat)) {
+      if (!isAutoPilotPlayer(roomPlayer) || room.reactionIntents.has(option.seat)) {
         continue;
       }
       room.reactionIntents.set(option.seat, pickReactionAction(option));
@@ -822,7 +904,7 @@ function processBotAction(room) {
 
   const turnSeat = room.game.turnSeat;
   const turnPlayer = room.players[turnSeat];
-  if (!turnPlayer?.isBot || room.game.players[turnSeat].hasHu) {
+  if (!isAutoPilotPlayer(turnPlayer) || room.game.players[turnSeat].hasHu) {
     return;
   }
 
@@ -1069,6 +1151,10 @@ function listActiveRooms() {
 
 function roomHasHumanPlayers(room) {
   return room.players.some((player) => player && !player.isBot);
+}
+
+function isAutoPilotPlayer(player) {
+  return Boolean(player && (player.isBot || player.auto));
 }
 
 function shouldCloseRoom(room) {

@@ -110,6 +110,19 @@ button.danger {
   word-break: break-word;
 }
 
+#trend {
+  max-height: 180px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  background: #fafbfc;
+  margin: 0 0 10px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 #activeRooms {
   display: flex;
   flex-wrap: wrap;

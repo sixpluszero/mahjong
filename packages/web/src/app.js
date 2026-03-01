@@ -1,5 +1,7 @@
-const wsUrl = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`;
-const ws = new WebSocket(wsUrl);
+const wsUrl = resolveWsUrl();
+let ws = null;
+let reconnectTimer = null;
+const RESUME_STORAGE_KEY = 'mj_resume_session';
 
 const state = {
   clientId: null,
@@ -23,8 +25,13 @@ const state = {
   lastCloseReason: '',
   lastOpenAt: 0,
   lastMessageAt: 0,
+  wsReadyState: 3,
+  reconnectAttempts: 0,
+  nextReconnectAt: 0,
   activeRooms: [],
-  lastGeneratedName: ''
+  lastGeneratedName: '',
+  resumeSession: readResumeSession(),
+  resumePending: false
 };
 
 const el = {
@@ -45,6 +52,7 @@ const el = {
   players: document.querySelector('#players'),
   totals: document.querySelector('#totals'),
   history: document.querySelector('#history'),
+  trend: document.querySelector('#trend'),
   gameInfo: document.querySelector('#gameInfo'),
   actionBar: document.querySelector('#actionBar'),
   hand: document.querySelector('#hand'),
@@ -55,34 +63,87 @@ const el = {
 
 el.nameInput.value = state.name;
 
-ws.addEventListener('open', () => {
-  state.connected = true;
-  state.lastOpenAt = Date.now();
-  state.lastSocketError = '';
-  state.lastCloseCode = '';
-  state.lastCloseReason = '';
-  safeRender();
-
-  if (state.name) {
-    send('hello', { name: state.name });
+function connectSocket({ resetBackoff = false } = {}) {
+  if (resetBackoff) {
+    state.reconnectAttempts = 0;
+    state.nextReconnectAt = 0;
   }
-  send('list_rooms', {});
-});
 
-ws.addEventListener('close', (event) => {
-  state.connected = false;
-  state.lastCloseCode = String(event.code ?? '');
-  state.lastCloseReason = event.reason || '';
-  setNotice(`连接已断开 code=${event.code} reason=${event.reason || '(none)'}`);
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+    return;
+  }
+
+  ws = new WebSocket(wsUrl);
+  state.wsReadyState = ws.readyState;
   safeRender();
-});
 
-ws.addEventListener('error', (event) => {
-  state.lastSocketError = event?.message || 'WebSocket error';
-  safeRender();
-});
+  ws.addEventListener('open', () => {
+    state.connected = true;
+    state.wsReadyState = ws.readyState;
+    state.lastOpenAt = Date.now();
+    state.lastSocketError = '';
+    state.lastCloseCode = '';
+    state.lastCloseReason = '';
+    state.reconnectAttempts = 0;
+    state.nextReconnectAt = 0;
+    safeRender();
 
-ws.addEventListener('message', (event) => {
+    if (state.name) {
+      send('hello', { name: state.name });
+    }
+
+    if (state.resumeSession) {
+      state.resumePending = true;
+      send('resume_room', {
+        roomId: state.resumeSession.roomId,
+        seat: state.resumeSession.seat,
+        resumeToken: state.resumeSession.resumeToken
+      });
+    }
+
+    send('list_rooms', {});
+  });
+
+  ws.addEventListener('close', (event) => {
+    state.connected = false;
+    state.wsReadyState = ws.readyState;
+    state.lastCloseCode = String(event.code ?? '');
+    state.lastCloseReason = event.reason || '';
+    state.resumePending = false;
+    scheduleReconnect();
+    safeRender();
+  });
+
+  ws.addEventListener('error', (event) => {
+    state.wsReadyState = ws.readyState;
+    state.lastSocketError = event?.message || 'WebSocket error';
+    safeRender();
+  });
+
+  ws.addEventListener('message', (event) => handleMessage(event));
+}
+
+function scheduleReconnect() {
+  if (reconnectTimer) {
+    return;
+  }
+
+  const delay = Math.min(8000, 600 * (2 ** Math.min(state.reconnectAttempts, 4)));
+  state.reconnectAttempts += 1;
+  state.nextReconnectAt = Date.now() + delay;
+  setNotice(`连接中断，${Math.round(delay / 1000)} 秒后自动重连...`);
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    connectSocket();
+  }, delay);
+}
+
+function handleMessage(event) {
   try {
     state.lastMessageAt = Date.now();
     const { type, payload } = JSON.parse(event.data);
@@ -95,6 +156,22 @@ ws.addEventListener('message', (event) => {
       state.name = payload.name;
       localStorage.setItem('mj_name', state.name);
       setNotice(`昵称已设置：${state.name}`);
+    }
+
+    if (type === 'seat_assigned') {
+      state.roomId = payload.roomId;
+      state.resumeSession = {
+        roomId: payload.roomId,
+        seat: payload.seat,
+        resumeToken: payload.resumeToken,
+        name: payload.name
+      };
+      persistResumeSession();
+    }
+
+    if (type === 'resume_ack') {
+      state.resumePending = false;
+      setNotice(`已恢复座位：房间${payload.roomId} 座位${payload.seat}`);
     }
 
     if (type === 'room_state') {
@@ -116,6 +193,11 @@ ws.addEventListener('message', (event) => {
     }
 
     if (type === 'error') {
+      if (state.resumePending) {
+        state.resumePending = false;
+        clearResumeSession();
+        setNotice(`恢复失败：${payload.code}，请重新加入房间`);
+      }
       setNotice(`错误：${payload.code}`);
     }
 
@@ -129,7 +211,9 @@ ws.addEventListener('message', (event) => {
     console.error('[message_handler_error]', err);
     safeRender();
   }
-});
+}
+
+connectSocket({ resetBackoff: true });
 
 window.addEventListener('error', (event) => {
   setNotice(`前端异常: ${event.message}`);
@@ -194,7 +278,14 @@ el.refreshRoomsBtn.addEventListener('click', () => {
 });
 
 el.reconnectBtn.addEventListener('click', () => {
-  location.reload();
+  if (ws) {
+    try {
+      ws.close();
+    } catch {
+      // ignore
+    }
+  }
+  connectSocket({ resetBackoff: true });
 });
 
 setInterval(() => {
@@ -202,7 +293,7 @@ setInterval(() => {
 }, 1000);
 
 setInterval(() => {
-  if (ws.readyState === 1) {
+  if (ws && ws.readyState === 1) {
     send('list_rooms', {});
   }
 }, 3000);
@@ -222,7 +313,9 @@ function render() {
   el.status.textContent = state.notice ? `${base}\n${state.notice}` : base;
   el.diag.textContent = [
     `wsUrl: ${wsUrl}`,
-    `readyState: ${socketStateText(ws.readyState)} (${ws.readyState})`,
+    `readyState: ${socketStateText(state.wsReadyState)} (${state.wsReadyState})`,
+    `reconnectAttempts: ${state.reconnectAttempts}`,
+    `nextReconnectAt: ${formatTime(state.nextReconnectAt)}`,
     `lastOpenAt: ${formatTime(state.lastOpenAt)}`,
     `lastMessageAt: ${formatTime(state.lastMessageAt)}`,
     `lastClose: code=${state.lastCloseCode || '-'} reason=${state.lastCloseReason || '-'}`,
@@ -235,6 +328,7 @@ function render() {
   renderPlayers();
   renderTotals();
   renderHistory();
+  renderTrend();
   renderActiveRooms();
   renderGameInfo();
   renderHand();
@@ -290,12 +384,13 @@ function renderPlayers() {
       const meldText = renderMeldSummary(gamePlayer?.melds || []);
       const lackText = gamePlayer?.lackSuit ? suitName(gamePlayer.lackSuit) : '-';
       const huText = gamePlayer?.hasHu ? '已胡' : '未胡';
+      const onlineText = p.online ? '在线' : (p.auto ? '离线托管' : '离线');
       if (hasGame) {
         const role = p.isBot ? '机器人' : '玩家';
-        return `座位 ${p.seat}: ${p.name}(${role}) | 总分=${p.totalScore ?? 0} | 缺门=${lackText} | ${huText} | 碰杠=${meldText}`;
+        return `座位 ${p.seat}: ${p.name}(${role}) | ${onlineText} | 总分=${p.totalScore ?? 0} | 缺门=${lackText} | ${huText} | 碰杠=${meldText}`;
       }
       const role = p.isBot ? '机器人' : '玩家';
-      return `座位 ${p.seat}: ${p.name}(${role}) | 总分=${p.totalScore ?? 0} | 准备=${p.ready ? '已准备' : '未准备'}`;
+      return `座位 ${p.seat}: ${p.name}(${role}) | ${onlineText} | 总分=${p.totalScore ?? 0} | 准备=${p.ready ? '已准备' : '未准备'}`;
     })
     .join('\n');
 }
@@ -329,6 +424,30 @@ function renderHistory() {
       return `第${item.roundNo}局 [${item.settlementReason || '-'}] ${detail}`;
     })
     .join('\n');
+}
+
+function renderTrend() {
+  const players = (state.roomState?.players || []).filter((p) => p.occupied);
+  const history = state.roomState?.roundHistory || [];
+  if (players.length === 0 || history.length === 0) {
+    el.trend.textContent = '暂无';
+    return;
+  }
+
+  const seriesBySeat = new Map(players.map((p) => [p.seat, [0]]));
+  for (const round of history) {
+    const deltas = new Map((round.scoreChanges || []).map((x) => [x.seat, x.delta]));
+    for (const p of players) {
+      const arr = seriesBySeat.get(p.seat);
+      const next = arr[arr.length - 1] + (deltas.get(p.seat) || 0);
+      arr.push(next);
+    }
+  }
+
+  const lines = players
+    .sort((a, b) => a.seat - b.seat)
+    .map((p) => `座位${p.seat} ${p.name}: ${seriesBySeat.get(p.seat).join(' -> ')}`);
+  el.trend.textContent = lines.join('\n');
 }
 
 function renderGameInfo() {
@@ -812,7 +931,7 @@ function logStatus(message) {
 }
 
 function send(type, payload) {
-  if (ws.readyState !== 1) {
+  if (!ws || ws.readyState !== 1) {
     setNotice('连接未建立');
     safeRender();
     return;
@@ -930,6 +1049,44 @@ function randomInt(min, max) {
     return min + (buf[0] % span);
   }
   return min + Math.floor(Math.random() * (max - min + 1));
+}
+
+function resolveWsUrl() {
+  const qs = new URLSearchParams(location.search);
+  const qsWs = qs.get('ws');
+  if (qsWs && /^wss?:\/\//i.test(qsWs)) {
+    return qsWs;
+  }
+  return `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`;
+}
+
+function readResumeSession() {
+  try {
+    const raw = localStorage.getItem(RESUME_STORAGE_KEY);
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw);
+    if (!parsed?.roomId || parsed?.seat === undefined || !parsed?.resumeToken) {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function persistResumeSession() {
+  if (!state.resumeSession) {
+    localStorage.removeItem(RESUME_STORAGE_KEY);
+    return;
+  }
+  localStorage.setItem(RESUME_STORAGE_KEY, JSON.stringify(state.resumeSession));
+}
+
+function clearResumeSession() {
+  state.resumeSession = null;
+  localStorage.removeItem(RESUME_STORAGE_KEY);
 }
 
 safeRender();

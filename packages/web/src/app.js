@@ -34,6 +34,7 @@ const el = {
   createRoomBtn: document.querySelector('#createRoomBtn'),
   roomIdInput: document.querySelector('#roomIdInput'),
   joinRoomBtn: document.querySelector('#joinRoomBtn'),
+  addBotBtn: document.querySelector('#addBotBtn'),
   readyBtn: document.querySelector('#readyBtn'),
   refreshRoomsBtn: document.querySelector('#refreshRoomsBtn'),
   reconnectBtn: document.querySelector('#reconnectBtn'),
@@ -173,6 +174,15 @@ el.joinRoomBtn.addEventListener('click', () => {
   send('join_room', { roomId });
 });
 
+el.addBotBtn.addEventListener('click', () => {
+  if (!state.roomId) {
+    setNotice('请先创建或加入房间');
+    safeRender();
+    return;
+  }
+  send('add_bot', {});
+});
+
 el.readyBtn.addEventListener('click', () => {
   send('set_ready', { ready: true });
 });
@@ -201,6 +211,7 @@ function render() {
   const roomStatus = state.roomState?.hasGame ? '已开局' : '等待准备';
   const rematchReady = state.roomState?.rematchReadySeats?.length ?? 0;
   const occupiedSeats = (state.roomState?.players || []).filter((p) => p.occupied).length;
+  const canAddBot = Boolean(state.roomState && !state.roomState.hasGame && occupiedSeats < 4);
 
   const base = state.connected
     ? `已连接 ${wsUrl} | clientId=${state.clientId || '-'} | 昵称=${state.name || '-'}`
@@ -216,6 +227,7 @@ function render() {
   ].join('\n');
 
   el.roomInfo.textContent = `房间号：${state.roomId || '-'} | 房间状态：${roomStatus} | 阶段：${phase} | 我的座位：${seat ?? '-'} | 我的分数：${state.you?.score ?? '-'} | 再来一局确认：${rematchReady}/${occupiedSeats || 4}`;
+  el.addBotBtn.disabled = !canAddBot;
 
   renderPlayers();
   renderActiveRooms();
@@ -274,9 +286,11 @@ function renderPlayers() {
       const lackText = gamePlayer?.lackSuit ? suitName(gamePlayer.lackSuit) : '-';
       const huText = gamePlayer?.hasHu ? '已胡' : '未胡';
       if (hasGame) {
-        return `座位 ${p.seat}: ${p.name} | 缺门=${lackText} | ${huText} | 副露=${meldText}`;
+        const role = p.isBot ? '机器人' : '玩家';
+        return `座位 ${p.seat}: ${p.name}(${role}) | 缺门=${lackText} | ${huText} | 副露=${meldText}`;
       }
-      return `座位 ${p.seat}: ${p.name} | 准备=${p.ready ? '已准备' : '未准备'}`;
+      const role = p.isBot ? '机器人' : '玩家';
+      return `座位 ${p.seat}: ${p.name}(${role}) | 准备=${p.ready ? '已准备' : '未准备'}`;
     })
     .join('\n');
 }

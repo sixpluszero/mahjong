@@ -7,6 +7,7 @@ Server URL: `ws://localhost:8787`
 - `create_room`: `{}`
 - `join_room`: `{ roomId: string }`
 - `set_ready`: `{ ready: boolean }`
+- `add_bot`: `{}`
 - `submit_exchange`: `{ tileIds: string[3] }`
 - `set_lack`: `{ lackSuit: 'wan'|'tiao'|'tong' }`
 - `discard`: `{ tileId: string }`
@@ -21,7 +22,7 @@ Server URL: `ws://localhost:8787`
 ## Server -> Client
 - `welcome`: `{ clientId, now }`
 - `hello_ack`: `{ clientId, name }`
-- `room_state`: `{ roomId, hasGame, phase, rematchReadySeats, players[] }`
+- `room_state`: `{ roomId, hasGame, phase, rematchReadySeats, players[] }` (其中 `players[].isBot` 标识机器人)
 - `rooms_list`: `{ rooms: [{ roomId, occupied, capacity, hasGame, phase, canJoin }] }`
 - `game_state`: `{ roomId, you, state, pendingReaction }`
 - `error`: `{ code }`

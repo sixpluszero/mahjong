@@ -1,4 +1,5 @@
 import { createServer } from 'node:http';
+import { randomInt } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { networkInterfaces } from 'node:os';
 import path from 'node:path';
@@ -29,6 +30,7 @@ const STATIC_FILES = new Map([
 ]);
 const rooms = new Map();
 const connections = new Map();
+const BOT_ACTION_DELAY_MS = 120;
 
 const httpServer = createServer(async (req, res) => {
   if (req.url === '/api/health') {
@@ -125,6 +127,9 @@ function handleIncoming(socket, raw) {
       case 'set_ready':
         handleSetReady(client, payload);
         return;
+      case 'add_bot':
+        handleAddBot(client);
+        return;
       case 'submit_exchange':
         handleSubmitExchange(client, payload);
         return;
@@ -200,7 +205,8 @@ function handleCreateRoom(client) {
     players: new Array(4).fill(null),
     game: null,
     reactionIntents: new Map(),
-    rematchReadySeats: new Set()
+    rematchReadySeats: new Set(),
+    botActionTimer: null
   };
 
   rooms.set(roomId, room);
@@ -241,6 +247,28 @@ function handleSetReady(client, payload) {
   if (canStart(room)) {
     startGame(room);
   }
+}
+
+function handleAddBot(client) {
+  const room = requireRoom(client);
+  if (room.game) {
+    throw new Error('CANNOT_ADD_BOT_DURING_GAME');
+  }
+
+  const openSeat = room.players.findIndex((player) => !player);
+  if (openSeat === -1) {
+    throw new Error('ROOM_FULL');
+  }
+
+  seatBot(room, openSeat);
+  emitRoomState(room);
+
+  if (canStart(room)) {
+    startGame(room);
+    return;
+  }
+
+  scheduleBotAction(room);
 }
 
 function handleSubmitExchange(client, payload) {
@@ -356,7 +384,10 @@ function handleRequestRematch(client) {
 
   if (allAccepted) {
     startGame(room);
+    return;
   }
+
+  scheduleBotAction(room);
 }
 
 function handleDisconnect(socket) {
@@ -382,6 +413,10 @@ function handleDisconnect(socket) {
   }
 
   if (room.players.every((player) => !player)) {
+    if (room.botActionTimer) {
+      clearTimeout(room.botActionTimer);
+      room.botActionTimer = null;
+    }
     rooms.delete(room.id);
     return;
   }
@@ -399,16 +434,18 @@ function startGame(room) {
   room.rematchReadySeats.clear();
 
   for (const player of room.players) {
-    player.ready = false;
+    player.ready = Boolean(player.isBot);
   }
 
   emitRoomState(room);
   emitGameState(room);
+  scheduleBotAction(room);
 }
 
 function seatClient(room, client, seat) {
   room.players[seat] = {
     clientId: client.id,
+    isBot: false,
     name: client.name,
     seat,
     ready: false,
@@ -417,6 +454,17 @@ function seatClient(room, client, seat) {
 
   client.roomId = room.id;
   client.seat = seat;
+}
+
+function seatBot(room, seat) {
+  room.players[seat] = {
+    clientId: createId('bot'),
+    isBot: true,
+    name: `机器人${generateBotName()}`,
+    seat,
+    ready: true,
+    online: true
+  };
 }
 
 function emitRoomState(room) {
@@ -437,6 +485,7 @@ function emitRoomState(room) {
         seat,
         occupied: true,
         clientId: player.clientId,
+        isBot: Boolean(player.isBot),
         name: player.name,
         ready: player.ready,
         online: true
@@ -445,6 +494,7 @@ function emitRoomState(room) {
   };
 
   broadcastRoom(room, 'room_state', payload);
+  scheduleBotAction(room);
 }
 
 function emitGameState(room) {
@@ -478,6 +528,7 @@ function emitGameState(room) {
       pendingReaction: describePendingForSeat(room.game.pendingReactions, player.seat)
     });
   }
+  scheduleBotAction(room);
 }
 
 function describePendingForSeat(pending, seat) {
@@ -598,6 +649,307 @@ function isBenignRaceError(code) {
     || code === 'TILE_NOT_IN_HAND'
     || code.startsWith('INVALID_GAME_PHASE')
   );
+}
+
+function scheduleBotAction(room) {
+  if (!room || room.botActionTimer || !room.players.some((player) => player?.isBot)) {
+    return;
+  }
+
+  room.botActionTimer = setTimeout(() => {
+    room.botActionTimer = null;
+    processBotAction(room);
+  }, BOT_ACTION_DELAY_MS);
+}
+
+function processBotAction(room) {
+  if (!room || !rooms.has(room.id) || !room.players.some((player) => player?.isBot)) {
+    return;
+  }
+
+  if (!room.game) {
+    return;
+  }
+
+  if (room.game.phase === 'settlement') {
+    let changed = false;
+    for (const player of room.players) {
+      if (!player?.isBot) {
+        continue;
+      }
+      if (!room.rematchReadySeats.has(player.seat)) {
+        room.rematchReadySeats.add(player.seat);
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      emitRoomState(room);
+    }
+
+    const activeSeats = room.players
+      .map((player, seat) => (player ? seat : null))
+      .filter((seat) => seat !== null);
+    const allAccepted = activeSeats.every((seat) => room.rematchReadySeats.has(seat));
+    if (allAccepted) {
+      startGame(room);
+      return;
+    }
+
+    return;
+  }
+
+  if (room.game.phase === 'exchange') {
+    for (const player of room.players) {
+      if (!player?.isBot) {
+        continue;
+      }
+      if (room.game.players[player.seat].exchangeSelection) {
+        continue;
+      }
+      const hand = room.game.players[player.seat].hand;
+      const chosen = pickExchangeTiles(hand);
+      submitExchangeSelection(room.game, player.seat, chosen.map((tile) => tile.id));
+      emitGameState(room);
+      return;
+    }
+    return;
+  }
+
+  if (room.game.phase === 'lack') {
+    for (const player of room.players) {
+      if (!player?.isBot) {
+        continue;
+      }
+      if (room.game.players[player.seat].lackSuit) {
+        continue;
+      }
+      const hand = room.game.players[player.seat].hand;
+      assignLackSuit(room.game, player.seat, pickLackSuit(hand));
+      emitGameState(room);
+      return;
+    }
+    return;
+  }
+
+  if (room.game.phase !== 'play') {
+    return;
+  }
+
+  const pending = room.game.pendingReactions;
+  if (pending) {
+    let changed = false;
+    for (const option of pending.options) {
+      const roomPlayer = room.players[option.seat];
+      if (!roomPlayer?.isBot || room.reactionIntents.has(option.seat)) {
+        continue;
+      }
+      room.reactionIntents.set(option.seat, pickReactionAction(option));
+      changed = true;
+    }
+
+    if (!changed) {
+      return;
+    }
+
+    const allResponded = pending.options.every((option) => room.reactionIntents.has(option.seat));
+    if (!allResponded) {
+      emitGameState(room);
+      return;
+    }
+
+    const actions = [...room.reactionIntents.entries()].map(([seat, action]) => ({ seat, action }));
+    resolveReactions(room.game, actions);
+    room.reactionIntents.clear();
+    emitGameState(room);
+    return;
+  }
+
+  const turnSeat = room.game.turnSeat;
+  const turnPlayer = room.players[turnSeat];
+  if (!turnPlayer?.isBot || room.game.players[turnSeat].hasHu) {
+    return;
+  }
+
+  if (trySelfHu(room, turnSeat)) {
+    emitGameState(room);
+    return;
+  }
+
+  const buGangTile = pickBuGangTile(room.game.players[turnSeat]);
+  if (buGangTile && tryBuGang(room, turnSeat, buGangTile.id)) {
+    emitGameState(room);
+    return;
+  }
+
+  const anGangTile = pickAnGangTile(room.game.players[turnSeat].hand);
+  if (anGangTile && tryAnGang(room, turnSeat, anGangTile.id)) {
+    emitGameState(room);
+    return;
+  }
+
+  const discard = pickBestDiscard(room.game.players[turnSeat].hand, room.game.players[turnSeat].lackSuit);
+  discardTile(room.game, turnSeat, discard.id);
+  if (!room.game.pendingReactions) {
+    room.reactionIntents.clear();
+  }
+  emitGameState(room);
+}
+
+function pickExchangeTiles(hand) {
+  const groups = new Map();
+  for (const tile of hand) {
+    if (!groups.has(tile.suit)) {
+      groups.set(tile.suit, []);
+    }
+    groups.get(tile.suit).push(tile);
+  }
+
+  const sorted = [...groups.values()].sort((a, b) => b.length - a.length);
+  const pick = sorted.find((group) => group.length >= 3) ?? sorted[0] ?? [];
+  return pick.slice(0, 3);
+}
+
+function pickLackSuit(hand) {
+  const counts = { wan: 0, tiao: 0, tong: 0 };
+  for (const tile of hand) {
+    counts[tile.suit] += 1;
+  }
+  return ['wan', 'tiao', 'tong'].sort((a, b) => counts[a] - counts[b])[0];
+}
+
+function pickReactionAction(option) {
+  if (option.canHu) {
+    return 'hu';
+  }
+  if (option.canGang) {
+    return 'gang';
+  }
+  if (option.canPeng) {
+    return 'peng';
+  }
+  return 'pass';
+}
+
+function trySelfHu(room, seat) {
+  try {
+    declareSelfDrawHu(room.game, seat);
+    room.reactionIntents.clear();
+    return true;
+  } catch (error) {
+    if (error?.message === 'SELF_DRAW_HU_NOT_ALLOWED') {
+      return false;
+    }
+    throw error;
+  }
+}
+
+function pickBuGangTile(playerState) {
+  const pengKinds = playerState.melds
+    .filter((meld) => meld.type === 'peng')
+    .map((meld) => `${meld.tile.suit}-${meld.tile.rank}`);
+  for (const tile of playerState.hand) {
+    if (pengKinds.includes(`${tile.suit}-${tile.rank}`)) {
+      return tile;
+    }
+  }
+  return null;
+}
+
+function tryBuGang(room, seat, tileId) {
+  try {
+    declareBuGang(room.game, seat, tileId);
+    if (!room.game.pendingReactions) {
+      room.reactionIntents.clear();
+    }
+    return true;
+  } catch (error) {
+    if (error?.message === 'NO_MATCHING_PENG_FOR_BU_GANG') {
+      return false;
+    }
+    throw error;
+  }
+}
+
+function pickAnGangTile(hand) {
+  const counts = new Map();
+  for (const tile of hand) {
+    const key = `${tile.suit}-${tile.rank}`;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+    if (counts.get(key) >= 4) {
+      return tile;
+    }
+  }
+  return null;
+}
+
+function tryAnGang(room, seat, tileId) {
+  try {
+    declareAnGang(room.game, seat, tileId);
+    room.reactionIntents.clear();
+    return true;
+  } catch (error) {
+    if (error?.message === 'NOT_ENOUGH_TILES_FOR_AN_GANG') {
+      return false;
+    }
+    throw error;
+  }
+}
+
+function pickBestDiscard(hand, lackSuit) {
+  const candidates = hand.filter((tile) => tile.suit === lackSuit);
+  const pool = candidates.length > 0 ? candidates : hand;
+
+  let bestTile = pool[0];
+  let bestScore = Number.POSITIVE_INFINITY;
+  for (const tile of pool) {
+    const score = discardScore(hand, tile);
+    if (score < bestScore) {
+      bestScore = score;
+      bestTile = tile;
+      continue;
+    }
+    if (score === bestScore && tieBreakDiscard(tile, bestTile) < 0) {
+      bestTile = tile;
+    }
+  }
+  return bestTile;
+}
+
+function discardScore(hand, tile) {
+  let same = 0;
+  let near1 = 0;
+  let near2 = 0;
+  for (const candidate of hand) {
+    if (candidate.id === tile.id) {
+      continue;
+    }
+    if (candidate.suit !== tile.suit) {
+      continue;
+    }
+    const gap = Math.abs(candidate.rank - tile.rank);
+    if (gap === 0) {
+      same += 1;
+    } else if (gap === 1) {
+      near1 += 1;
+    } else if (gap === 2) {
+      near2 += 1;
+    }
+  }
+  return same * 4 + near1 * 2 + near2;
+}
+
+function tieBreakDiscard(a, b) {
+  if (a.rank !== b.rank) {
+    return b.rank - a.rank;
+  }
+  return a.id.localeCompare(b.id);
+}
+
+function generateBotName() {
+  const prefixes = ['雀友', '牌侠', '川麻客', '听牌王', '杠上花'];
+  const suffixes = ['东风', '南风', '西风', '北风', '红中', '发财', '白板'];
+  return `${prefixes[randomInt(0, prefixes.length)]}${suffixes[randomInt(0, suffixes.length)]}${randomInt(1000, 10000)}`;
 }
 
 function send(socket, type, payload = {}) {

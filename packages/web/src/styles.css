@@ -88,10 +88,21 @@ button.danger {
 #players,
 #gameInfo,
 #roomInfo,
-#melds {
+#melds,
+#totals {
   white-space: pre-wrap;
   font-size: 14px;
   line-height: 1.5;
+}
+
+#history {
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  background: #fafbfc;
+  margin: 0 0 10px;
 }
 
 #activeRooms {

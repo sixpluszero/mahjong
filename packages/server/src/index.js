@@ -8,6 +8,7 @@ import { WebSocketServer } from 'ws';
 
 import {
   assignLackSuit,
+  canDeclareSelfDrawHu,
   createInitialGame,
   declareAnGang,
   declareBuGang,
@@ -206,7 +207,10 @@ function handleCreateRoom(client) {
     game: null,
     reactionIntents: new Map(),
     rematchReadySeats: new Set(),
-    botActionTimer: null
+    botActionTimer: null,
+    roundNo: 0,
+    settlementRecorded: false,
+    roundHistory: []
   };
 
   rooms.set(roomId, room);
@@ -377,12 +381,7 @@ function handleRequestRematch(client) {
   room.rematchReadySeats.add(client.seat);
   emitRoomState(room);
 
-  const activeSeats = room.players
-    .map((player, seat) => (player ? seat : null))
-    .filter((seat) => seat !== null);
-  const allAccepted = activeSeats.every((seat) => room.rematchReadySeats.has(seat));
-
-  if (allAccepted) {
+  if (canStartRematch(room)) {
     startGame(room);
     return;
   }
@@ -432,8 +431,13 @@ function startGame(room) {
   room.game = createInitialGame();
   room.reactionIntents.clear();
   room.rematchReadySeats.clear();
+  room.roundNo += 1;
+  room.settlementRecorded = false;
 
   for (const player of room.players) {
+    if (!player) {
+      continue;
+    }
     player.ready = Boolean(player.isBot);
   }
 
@@ -449,6 +453,7 @@ function seatClient(room, client, seat) {
     name: client.name,
     seat,
     ready: false,
+    totalScore: 0,
     online: true
   };
 
@@ -463,6 +468,7 @@ function seatBot(room, seat) {
     name: `机器人${generateBotName()}`,
     seat,
     ready: true,
+    totalScore: 0,
     online: true
   };
 }
@@ -473,6 +479,8 @@ function emitRoomState(room) {
     hasGame: Boolean(room.game),
     phase: room.game?.phase ?? null,
     rematchReadySeats: [...room.rematchReadySeats],
+    roundNo: room.roundNo,
+    roundHistory: room.roundHistory,
     players: room.players.map((player, seat) => {
       if (!player) {
         return {
@@ -488,6 +496,7 @@ function emitRoomState(room) {
         isBot: Boolean(player.isBot),
         name: player.name,
         ready: player.ready,
+        totalScore: player.totalScore ?? 0,
         online: true
       };
     })
@@ -500,6 +509,11 @@ function emitRoomState(room) {
 function emitGameState(room) {
   if (!room.game) {
     return;
+  }
+
+  if (room.game.phase === 'settlement' && !room.settlementRecorded) {
+    recordSettlementIfNeeded(room);
+    emitRoomState(room);
   }
 
   const publicState = getPublicSnapshot(room.game);
@@ -522,13 +536,50 @@ function emitGameState(room) {
         melds: room.game.players[player.seat].melds,
         lackSuit: room.game.players[player.seat].lackSuit,
         hasHu: room.game.players[player.seat].hasHu,
-        score: room.game.players[player.seat].score
+        score: room.game.players[player.seat].score,
+        canSelfHu: canDeclareSelfDrawHu(room.game, player.seat)
       },
       state: publicState,
       pendingReaction: describePendingForSeat(room.game.pendingReactions, player.seat)
     });
   }
   scheduleBotAction(room);
+}
+
+function recordSettlementIfNeeded(room) {
+  if (!room.game || room.game.phase !== 'settlement' || room.settlementRecorded) {
+    return;
+  }
+
+  const scoreChanges = [];
+  for (let seat = 0; seat < room.players.length; seat += 1) {
+    const player = room.players[seat];
+    if (!player) {
+      continue;
+    }
+
+    const delta = room.game.players[seat]?.score ?? 0;
+    player.totalScore = (player.totalScore ?? 0) + delta;
+    scoreChanges.push({
+      seat,
+      name: player.name,
+      delta,
+      totalScore: player.totalScore
+    });
+  }
+
+  room.roundHistory.push({
+    roundNo: room.roundNo,
+    settlementReason: room.game.settlementReason ?? null,
+    scoreChanges,
+    settledAt: Date.now()
+  });
+
+  if (room.roundHistory.length > 30) {
+    room.roundHistory.shift();
+  }
+
+  room.settlementRecorded = true;
 }
 
 function describePendingForSeat(pending, seat) {
@@ -651,6 +702,14 @@ function isBenignRaceError(code) {
   );
 }
 
+function canStartRematch(room) {
+  const allSeatsOccupied = room.players.every((player) => Boolean(player));
+  if (!allSeatsOccupied) {
+    return false;
+  }
+  return room.players.every((player, seat) => Boolean(player) && room.rematchReadySeats.has(seat));
+}
+
 function scheduleBotAction(room) {
   if (!room || room.botActionTimer || !room.players.some((player) => player?.isBot)) {
     return;
@@ -687,11 +746,7 @@ function processBotAction(room) {
       emitRoomState(room);
     }
 
-    const activeSeats = room.players
-      .map((player, seat) => (player ? seat : null))
-      .filter((seat) => seat !== null);
-    const allAccepted = activeSeats.every((seat) => room.rematchReadySeats.has(seat));
-    if (allAccepted) {
+    if (canStartRematch(room)) {
       startGame(room);
       return;
     }

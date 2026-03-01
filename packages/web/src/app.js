@@ -43,6 +43,8 @@ const el = {
   roomInfo: document.querySelector('#roomInfo'),
   activeRooms: document.querySelector('#activeRooms'),
   players: document.querySelector('#players'),
+  totals: document.querySelector('#totals'),
+  history: document.querySelector('#history'),
   gameInfo: document.querySelector('#gameInfo'),
   actionBar: document.querySelector('#actionBar'),
   hand: document.querySelector('#hand'),
@@ -212,6 +214,7 @@ function render() {
   const rematchReady = state.roomState?.rematchReadySeats?.length ?? 0;
   const occupiedSeats = (state.roomState?.players || []).filter((p) => p.occupied).length;
   const canAddBot = Boolean(state.roomState && !state.roomState.hasGame && occupiedSeats < 4);
+  const mySeatState = (state.roomState?.players || []).find((p) => p.occupied && p.seat === seat);
 
   const base = state.connected
     ? `已连接 ${wsUrl} | clientId=${state.clientId || '-'} | 昵称=${state.name || '-'}`
@@ -226,10 +229,12 @@ function render() {
     `lastError: ${state.lastSocketError || '-'}`
   ].join('\n');
 
-  el.roomInfo.textContent = `房间号：${state.roomId || '-'} | 房间状态：${roomStatus} | 阶段：${phase} | 我的座位：${seat ?? '-'} | 我的分数：${state.you?.score ?? '-'} | 再来一局确认：${rematchReady}/${occupiedSeats || 4}`;
+  el.roomInfo.textContent = `房间号：${state.roomId || '-'} | 房间状态：${roomStatus} | 阶段：${phase} | 当前局次：${state.roomState?.roundNo || 0} | 我的座位：${seat ?? '-'} | 本局分数：${state.you?.score ?? '-'} | 我的总分：${mySeatState?.totalScore ?? '-'} | 再来一局确认：${rematchReady}/${occupiedSeats || 4}`;
   el.addBotBtn.disabled = !canAddBot;
 
   renderPlayers();
+  renderTotals();
+  renderHistory();
   renderActiveRooms();
   renderGameInfo();
   renderHand();
@@ -287,10 +292,41 @@ function renderPlayers() {
       const huText = gamePlayer?.hasHu ? '已胡' : '未胡';
       if (hasGame) {
         const role = p.isBot ? '机器人' : '玩家';
-        return `座位 ${p.seat}: ${p.name}(${role}) | 缺门=${lackText} | ${huText} | 副露=${meldText}`;
+        return `座位 ${p.seat}: ${p.name}(${role}) | 总分=${p.totalScore ?? 0} | 缺门=${lackText} | ${huText} | 副露=${meldText}`;
       }
       const role = p.isBot ? '机器人' : '玩家';
-      return `座位 ${p.seat}: ${p.name}(${role}) | 准备=${p.ready ? '已准备' : '未准备'}`;
+      return `座位 ${p.seat}: ${p.name}(${role}) | 总分=${p.totalScore ?? 0} | 准备=${p.ready ? '已准备' : '未准备'}`;
+    })
+    .join('\n');
+}
+
+function renderTotals() {
+  const players = (state.roomState?.players || []).filter((p) => p.occupied);
+  if (players.length === 0) {
+    el.totals.textContent = '暂无';
+    return;
+  }
+
+  const lines = [...players]
+    .sort((a, b) => (b.totalScore ?? 0) - (a.totalScore ?? 0) || a.seat - b.seat)
+    .map((p, idx) => `${idx + 1}. 座位${p.seat} ${p.name}：${p.totalScore ?? 0}`);
+  el.totals.textContent = lines.join('\n');
+}
+
+function renderHistory() {
+  const history = state.roomState?.roundHistory || [];
+  const tail = history.slice(-10);
+  if (tail.length === 0) {
+    el.history.textContent = '暂无';
+    return;
+  }
+
+  el.history.textContent = tail
+    .map((item) => {
+      const detail = (item.scoreChanges || [])
+        .map((x) => `座位${x.seat} ${x.name} ${x.delta >= 0 ? '+' : ''}${x.delta} (总${x.totalScore})`)
+        .join(' | ');
+      return `第${item.roundNo}局 [${item.settlementReason || '-'}] ${detail}`;
     })
     .join('\n');
 }
@@ -485,8 +521,10 @@ function renderActionBar() {
 
   const selfHuBtn = createButton('自摸胡');
   selfHuBtn.className = 'primary';
-  selfHuBtn.addEventListener('click', () => send('self_hu', {}));
-  el.actionBar.appendChild(selfHuBtn);
+  if (state.you.canSelfHu) {
+    selfHuBtn.addEventListener('click', () => send('self_hu', {}));
+    el.actionBar.appendChild(selfHuBtn);
+  }
 
   for (const candidate of findAnGangCandidates(state.you.hand)) {
     const btn = createButton(`暗杠 ${tileLabel(candidate)}`);

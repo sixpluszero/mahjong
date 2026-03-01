@@ -314,6 +314,34 @@ export function declareSelfDrawHu(state, seat) {
   return state;
 }
 
+export function canDeclareSelfDrawHu(state, seat) {
+  if (state.phase !== 'play') {
+    return false;
+  }
+
+  if (state.pendingReactions) {
+    return false;
+  }
+
+  if (state.turnSeat !== seat) {
+    return false;
+  }
+
+  const player = state.players[seat];
+  if (!player || player.hasHu) {
+    return false;
+  }
+
+  const huResult = evaluateHuForPlayer(state, player, [], {
+    selfDraw: true,
+    menQing: isMenQing(player),
+    kongDraw: Boolean(state.lastDraw?.seat === seat && state.lastDraw.fromKong),
+    lastTileDraw: Boolean(state.lastDraw?.seat === seat && state.lastDraw.lastTile)
+  });
+
+  return Boolean(huResult?.canHu);
+}
+
 export function declareAnGang(state, seat, tileId) {
   assertPhase(state, 'play');
   ensureNoPendingReactions(state);

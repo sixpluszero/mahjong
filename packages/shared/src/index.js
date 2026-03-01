@@ -24,6 +24,7 @@ export {
   discardTile,
   resolveReactions,
   declareSelfDrawHu,
+  canDeclareSelfDrawHu,
   declareAnGang,
   declareBuGang,
   drawTileForSeat,

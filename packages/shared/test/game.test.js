@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   assignLackSuit,
+  canDeclareSelfDrawHu,
   createInitialGame,
   declareAnGang,
   declareBuGang,
@@ -294,6 +295,26 @@ test('declareSelfDrawHu settles from all active opponents', () => {
   assert.equal(game.players[2].score, -8);
   assert.equal(game.players[3].score, -8);
   assert.equal(game.settlementEvents.at(-1).winMode, 'zi_mo');
+});
+
+test('canDeclareSelfDrawHu reports eligibility without changing state', () => {
+  const game = createInitialGame({ dealerSeat: 1, baseScore: 1 });
+  game.phase = 'play';
+  game.turnSeat = 1;
+
+  game.players[1].hand = makeTiles([
+    'w1', 'w2', 'w3',
+    'w3', 'w4', 'w5',
+    'w5', 'w6', 'w7',
+    't2', 't3', 't4',
+    't9', 't9'
+  ], 'can-hu');
+  game.players[1].lackSuit = 'tong';
+
+  assert.equal(canDeclareSelfDrawHu(game, 1), true);
+  assert.equal(canDeclareSelfDrawHu(game, 0), false);
+  assert.equal(game.players[1].hasHu, false);
+  assert.equal(game.phase, 'play');
 });
 
 test('declareSelfDrawHu works with open melds + small concealed hand', () => {

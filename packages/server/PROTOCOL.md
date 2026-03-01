@@ -22,9 +22,13 @@ Server URL: `ws://localhost:8787`
 ## Server -> Client
 - `welcome`: `{ clientId, now }`
 - `hello_ack`: `{ clientId, name }`
-- `room_state`: `{ roomId, hasGame, phase, rematchReadySeats, players[] }` (其中 `players[].isBot` 标识机器人)
+- `room_state`: `{ roomId, hasGame, phase, rematchReadySeats, roundNo, roundHistory, players[] }`
+  - `players[].isBot` 标识机器人
+  - `players[].totalScore` 为房间累计总分（跨“再来一局”）
+  - `roundHistory[]` 记录每局结算：局号、终局原因、每位玩家本局增减分与当时总分
 - `rooms_list`: `{ rooms: [{ roomId, occupied, capacity, hasGame, phase, canJoin }] }`
 - `game_state`: `{ roomId, you, state, pendingReaction }`
+  - `you.canSelfHu`: 当前是否可自摸胡（用于前端显示按钮）
 - `error`: `{ code }`
 
 ## Notes

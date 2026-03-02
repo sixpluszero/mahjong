@@ -38,10 +38,42 @@ const BOT_ACTION_DELAY_WITH_HUMAN_MS = 1000;
 const ROOM_IDLE_CLOSE_MS = 30 * 60 * 1000;
 const DEFAULT_MAX_ROUNDS = 8;
 
+const WS_PING_INTERVAL_MS = 25000;
+const wsDebug = {
+  startedAt: Date.now(),
+  totals: {
+    connections: 0,
+    closes: 0,
+    errors: 0,
+    messages: 0,
+    pings: 0,
+    pongs: 0,
+    terminatedByHeartbeat: 0
+  },
+  active: 0,
+  byCloseCode: {},
+  recent: []
+};
+
+
 const httpServer = createServer(async (req, res) => {
   if (req.url === '/api/health') {
     res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({ ok: true, service: 'mahjong-server' }));
+    return;
+  }
+
+  if (req.url === '/api/ws-debug') {
+    res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+    res.end(JSON.stringify({
+      ok: true,
+      now: Date.now(),
+      uptimeMs: Date.now() - wsDebug.startedAt,
+      active: wsDebug.active,
+      totals: wsDebug.totals,
+      byCloseCode: wsDebug.byCloseCode,
+      recent: wsDebug.recent
+    }));
     return;
   }
 
@@ -67,7 +99,7 @@ const httpServer = createServer(async (req, res) => {
 
 const wss = new WebSocketServer({ server: httpServer });
 
-wss.on('connection', (socket) => {
+wss.on('connection', (socket, req) => {
   const client = {
     id: createId('c'),
     socket,
@@ -76,6 +108,20 @@ wss.on('connection', (socket) => {
     seat: null
   };
 
+  socket.isAlive = true;
+  socket.on('pong', () => {
+    socket.isAlive = true;
+    wsDebug.totals.pongs += 1;
+  });
+
+  wsDebug.active += 1;
+  wsDebug.totals.connections += 1;
+  logWsEvent('open', {
+    clientId: client.id,
+    ip: getClientIp(req),
+    ua: req?.headers?.['user-agent'] || null
+  });
+
   connections.set(socket, client);
   send(socket, 'welcome', {
     clientId: client.id,
@@ -83,16 +129,57 @@ wss.on('connection', (socket) => {
   });
 
   socket.on('message', (raw) => {
+    wsDebug.totals.messages += 1;
     handleIncoming(socket, raw);
   });
 
-  socket.on('close', () => {
+  socket.on('close', (code, reasonBuf) => {
+    wsDebug.active = Math.max(0, wsDebug.active - 1);
+    wsDebug.totals.closes += 1;
+    const reason = safeCloseReason(reasonBuf);
+    wsDebug.byCloseCode[code] = (wsDebug.byCloseCode[code] ?? 0) + 1;
+    logWsEvent('close', {
+      clientId: client.id,
+      code,
+      reason,
+      roomId: client.roomId,
+      seat: client.seat
+    });
     handleDisconnect(socket);
   });
 
-  socket.on('error', () => {
+  socket.on('error', (error) => {
+    wsDebug.totals.errors += 1;
+    logWsEvent('error', {
+      clientId: client.id,
+      message: error?.message || String(error)
+    });
     handleDisconnect(socket);
   });
+});
+
+
+const wsHeartbeatTimer = setInterval(() => {
+  for (const socket of wss.clients) {
+    if (socket.isAlive === false) {
+      wsDebug.totals.terminatedByHeartbeat += 1;
+      logWsEvent('terminate', { reason: 'heartbeat_timeout' });
+      socket.terminate();
+      continue;
+    }
+
+    socket.isAlive = false;
+    wsDebug.totals.pings += 1;
+    try {
+      socket.ping();
+    } catch {
+      // ignore ping race
+    }
+  }
+}, WS_PING_INTERVAL_MS);
+
+wss.on('close', () => {
+  clearInterval(wsHeartbeatTimer);
 });
 
 httpServer.listen(PORT, HOST, () => {
@@ -1254,6 +1341,38 @@ function buildFinalStandings(room) {
 
 function shouldCloseRoom(room) {
   return room.players.every((player) => !player);
+}
+
+
+function logWsEvent(type, payload = {}) {
+  const entry = {
+    at: Date.now(),
+    type,
+    ...payload
+  };
+  wsDebug.recent.push(entry);
+  if (wsDebug.recent.length > 80) {
+    wsDebug.recent.shift();
+  }
+}
+
+function getClientIp(req) {
+  const forwarded = req?.headers?.['x-forwarded-for'];
+  if (typeof forwarded === 'string' && forwarded.length > 0) {
+    return forwarded.split(',')[0].trim();
+  }
+  return req?.socket?.remoteAddress || null;
+}
+
+function safeCloseReason(reasonBuf) {
+  if (!reasonBuf) {
+    return '';
+  }
+  try {
+    return reasonBuf.toString('utf-8');
+  } catch {
+    return '';
+  }
 }
 
 function getLanIpv4Addresses() {

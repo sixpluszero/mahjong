@@ -1,3 +1,5 @@
+import { computeReconnectDelayMs, computeConnectTimeoutMs } from './reconnect-policy.js';
+
 /**
  * 中文：浏览器侧可复用实时连接运行时。
  * 负责：WebSocket 连接、超时防护、指数退避重连与消息收发。
@@ -45,7 +47,7 @@ export function createRealtimeClient(options) {
       return;
     }
 
-    const delayMs = Math.min(12000, 800 * (2 ** Math.min(reconnectAttempts, 4)));
+    const delayMs = computeReconnectDelayMs(reconnectAttempts);
     reconnectAttempts += 1;
     const nextReconnectAt = Date.now() + delayMs;
     onReconnectScheduled?.({ delayMs, attempt: reconnectAttempts, nextReconnectAt });
@@ -70,7 +72,7 @@ export function createRealtimeClient(options) {
     connectStartedAt = Date.now();
     ws = new WebSocket(wsUrl);
 
-    const timeoutMs = Math.min(connectTimeoutMaxMs, connectTimeoutMs + connectTimeoutStreak * 4000);
+    const timeoutMs = computeConnectTimeoutMs(connectTimeoutMs, connectTimeoutMaxMs, connectTimeoutStreak);
     connectTimeoutTimer = setTimeout(() => {
       if (!ws || ws.readyState !== WebSocket.CONNECTING) return;
       connectTimeoutStreak += 1;

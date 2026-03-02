@@ -1,32 +1,70 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# EN: Bootstrap a local RN macOS host app with compatible versions.
-# 中文：用兼容版本初始化本地 RN macOS 宿主工程。
-
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-HOST_DIR="${ROOT_DIR}/host"
+HOST_ROOT="${ROOT_DIR}/host"
 APP_NAME="MahjongMacHost"
+APP_DIR="${HOST_ROOT}/${APP_NAME}"
 
-if [ -d "$HOST_DIR" ]; then
-  echo "[skip] host already exists: $HOST_DIR"
+if [ -d "$APP_DIR" ]; then
+  echo "[skip] host already exists: $APP_DIR"
   exit 0
 fi
 
-mkdir -p "$HOST_DIR"
-cd "$HOST_DIR"
+mkdir -p "$HOST_ROOT"
 
-echo "[1/4] init react-native 0.81.6 project"
+echo "[1/6] init react-native 0.81.6 project"
+cd "$HOST_ROOT"
 npx @react-native-community/cli@18 init "$APP_NAME" --version 0.81.6 --skip-install --pm npm
 
-cd "$APP_NAME"
+if [ ! -d "$APP_DIR" ]; then
+  echo "[error] expected app dir not found: $APP_DIR"
+  exit 1
+fi
 
-echo "[2/4] install js deps"
+cd "$APP_DIR"
+
+echo "[2/6] install js deps"
 npm install
 
-echo "[3/4] install react-native-macos 0.81.3"
-npm install react-native-macos@0.81.3 --legacy-peer-deps
+echo "[3/6] install react-native-macos"
+npx react-native-macos-init
 
-echo "[4/4] scaffold ready"
-echo "Next manual step: follow https://microsoft.github.io/react-native-macos/docs/getting-started"
-echo "Then wire app entry to: ../../src/App.tsx"
+echo "[4/6] install macOS pods"
+pod install --project-directory=macos
+
+echo "[5/6] patch host entry + metro config"
+cat > App.tsx <<'APP_EOF'
+/**
+ * EN: Host entry delegates to repo source-of-truth app.
+ * 中文：宿主入口委托到仓库内的业务 App 源码。
+ */
+
+export { default } from '../../src/App';
+APP_EOF
+
+cat > metro.config.js <<'METRO_EOF'
+const path = require('path');
+const { getDefaultConfig, mergeConfig } = require('@react-native/metro-config');
+
+const projectRoot = __dirname;
+const workspaceRoot = path.resolve(__dirname, '..', '..', '..', '..');
+
+const config = {
+  watchFolders: [workspaceRoot],
+  resolver: {
+    nodeModulesPaths: [
+      path.resolve(projectRoot, 'node_modules'),
+      path.resolve(workspaceRoot, 'node_modules')
+    ]
+  }
+};
+
+module.exports = mergeConfig(getDefaultConfig(projectRoot), config);
+METRO_EOF
+
+echo "[6/6] done"
+echo "Run host app:"
+echo "  cd $APP_DIR"
+echo "  npx react-native start"
+echo "  npx react-native run-macos"

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mahjong-shell-v1';
+const CACHE_NAME = 'mahjong-shell-v2';
 const APP_SHELL = ['/', '/app.js', '/styles.css', '/manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
@@ -32,21 +32,17 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  event.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) {
-        return cached;
-      }
+  const isDocument = request.mode === 'navigate' || url.pathname === '/';
 
-      return fetch(request).then((response) => {
+  event.respondWith(
+    (isDocument ? fetch(request).catch(() => caches.match(request)) : caches.match(request).then((cached) => cached || fetch(request)))
+      .then((response) => {
         if (!response || response.status !== 200 || response.type !== 'basic') {
           return response;
         }
-
         const cloned = response.clone();
         caches.open(CACHE_NAME).then((cache) => cache.put(request, cloned));
         return response;
-      });
-    })
+      })
   );
 });

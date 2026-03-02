@@ -498,7 +498,7 @@ function renderHistory() {
       const detail = (item.scoreChanges || [])
         .map((x) => `座位${x.seat} ${x.name} ${x.delta >= 0 ? '+' : ''}${x.delta} (总${x.totalScore})`)
         .join(' | ');
-      return `第${item.roundNo}局 [${item.settlementReason || '-'}] ${detail}`;
+      return `第${item.roundNo}局 [${formatSettlementReason(item.settlementReason)}] ${detail}`;
     })
     .join('\n');
 }
@@ -565,10 +565,10 @@ function renderGameInfo() {
   }
   el.gameInfo.textContent = [
     `当前出牌座位: ${state.gameState.turnSeat}`,
-    `我是否已胡: ${me.hasHu}`,
+    `玩家胡牌状态: ${renderHuStatusOverview(state.gameState.players || [])}`,
     `我的定缺: ${me.lackSuit ? suitName(me.lackSuit) : '-'}`,
     `剩余牌墙: ${state.gameState.wallRemaining}`,
-    `终局原因: ${state.gameState.settlementReason || '-'}`
+    `终局原因: ${formatSettlementReason(state.gameState.settlementReason)}`
   ].join('\n');
 }
 
@@ -586,10 +586,9 @@ function renderHand() {
   );
   const frag = document.createDocumentFragment();
 
-  const renderHand = reorderHandByLatestDraw(hand);
   const highlightLatest = shouldHighlightLatestDraw();
 
-  for (const tile of renderHand) {
+  for (const tile of hand) {
     const btn = createButton('');
     btn.className = 'tile';
     btn.appendChild(createTileVisual(tile, { compact: false }));
@@ -980,6 +979,28 @@ function formatFanDetail(event) {
   return `牌型：${terms.join(' + ')} => 合计${cappedFan}番`;
 }
 
+
+function formatSettlementReason(reason) {
+  const map = {
+    all_but_one_hu: '三家已胡（血战结束）',
+    wall_exhausted: '牌墙耗尽（流局）',
+    no_active_players: '无可行动玩家'
+  };
+  if (!reason) {
+    return '-';
+  }
+  return map[reason] || reason;
+}
+
+function renderHuStatusOverview(players) {
+  if (!players || players.length === 0) {
+    return '-';
+  }
+  return players
+    .map((player) => `座位${player.seat}:${player.hasHu ? '已胡' : '未胡'}`)
+    .join(' | ');
+}
+
 function formatMeld(meld) {
   const typeMap = {
     peng: '碰',
@@ -1099,22 +1120,6 @@ function trackLatestDraw() {
   }
 
   state.lastKnownHandIds = currentIds;
-}
-
-function reorderHandByLatestDraw(hand) {
-  if (!state.latestDrawTileId) {
-    return hand;
-  }
-
-  const idx = hand.findIndex((tile) => tile.id === state.latestDrawTileId);
-  if (idx === -1) {
-    return hand;
-  }
-
-  const arr = [...hand];
-  const [latest] = arr.splice(idx, 1);
-  arr.push(latest);
-  return arr;
 }
 
 function shouldHighlightLatestDraw() {

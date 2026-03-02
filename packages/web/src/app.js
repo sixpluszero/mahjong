@@ -5,7 +5,7 @@
  * Handles WebSocket lifecycle, server message synchronization, local UI state, and render/action dispatch.
  */
 
-import { createRealtimeClient } from '/client-core.js';
+import { createRealtimeClient, reduceServerMessage } from '/client-core.js';
 
 const wsUrl = resolveWsUrl();
 /** 中文：断线重连用的会话快照存储键。EN: LocalStorage key used for session resume after reconnect. */
@@ -170,56 +170,44 @@ const realtime = createRealtimeClient({
 function handleMessage(event) {
   try {
     state.lastMessageAt = Date.now();
-    const { type, payload } = JSON.parse(event.data);
+    const message = JSON.parse(event.data);
+    const { type, payload } = message;
+    const prevPhase = state.gameState?.phase;
 
-    if (type === 'welcome') {
-      state.clientId = payload.clientId;
+    const { patch = {}, effects = [] } = reduceServerMessage(state, message);
+    Object.assign(state, patch);
+
+    for (const effect of effects) {
+      if (effect.type === 'notice') {
+        setNotice(effect.message);
+      }
+
+      if (effect.type === 'persist_resume_session') {
+        persistResumeSession();
+      }
+
+      if (effect.type === 'send') {
+        send(effect.messageType, effect.payload || {});
+      }
+
+      if (effect.type === 'track_latest_draw') {
+        trackLatestDraw();
+      }
+
+      if (effect.type === 'phase_change') {
+        onPhaseChange(prevPhase, state.gameState?.phase);
+      }
     }
 
     if (type === 'hello_ack') {
-      state.name = payload.name;
       localStorage.setItem('mj_name', state.name);
-      setNotice(`昵称已设置：${state.name}`);
-    }
-
-    if (type === 'seat_assigned') {
-      state.roomId = payload.roomId;
-      state.resumeSession = {
-        roomId: payload.roomId,
-        seat: payload.seat,
-        resumeToken: payload.resumeToken,
-        name: payload.name
-      };
-      persistResumeSession();
-    }
-
-    if (type === 'resume_ack') {
-      state.resumePending = false;
-      setNotice(`已恢复座位：房间${payload.roomId} 座位${payload.seat}`);
     }
 
     if (type === 'room_state') {
-      state.roomState = payload;
-      state.roomId = payload.roomId;
-      if (payload.phase !== 'settlement') {
-        state.rematchRequested = false;
+      const qsRoomId = new URLSearchParams(location.search).get('room');
+      if (qsRoomId && !state.roomId) {
+        send('join_room', { roomId: String(qsRoomId).trim().toUpperCase() });
       }
-      send('list_rooms', {});
-
-    const qsRoomId = new URLSearchParams(location.search).get('room');
-    if (qsRoomId && !state.roomId) {
-      send('join_room', { roomId: String(qsRoomId).trim().toUpperCase() });
-    }
-    }
-
-    if (type === 'game_state') {
-      const prevPhase = state.gameState?.phase;
-      state.gameState = payload.state;
-      state.you = payload.you;
-      state.pendingReaction = payload.pendingReaction;
-      state.pendingDiscardTileId = null;
-      trackLatestDraw();
-      onPhaseChange(prevPhase, state.gameState?.phase);
     }
 
     if (type === 'error') {
@@ -229,10 +217,6 @@ function handleMessage(event) {
         setNotice(`恢复失败：${payload.code}，请重新加入房间`);
       }
       setNotice(`错误：${payload.code}`);
-    }
-
-    if (type === 'rooms_list') {
-      state.activeRooms = payload.rooms || [];
     }
 
     safeRender();

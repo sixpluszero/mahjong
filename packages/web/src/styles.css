@@ -307,7 +307,7 @@ button:disabled {
 @media (max-width: 1024px) {
   .page {
     margin: 12px auto;
-    padding: 0 12px 112px;
+    padding: 0 12px 20px;
     gap: 10px;
   }
 
@@ -330,20 +330,12 @@ button:disabled {
   }
 
   #actionBar {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 40;
-    margin: 0;
-    padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
-    border-left: none;
-    border-right: none;
-    border-bottom: none;
-    border-radius: 12px 12px 0 0;
-    background: rgba(248, 251, 255, 0.98);
-    box-shadow: 0 -8px 24px rgba(24, 45, 72, 0.15);
-    backdrop-filter: blur(6px);
+    position: static;
+    margin-bottom: 10px;
+    padding: 8px;
+    border-radius: 10px;
+    background: #f8fbff;
+    box-shadow: none;
   }
 
   #actionBar button {
@@ -366,7 +358,7 @@ button:disabled {
 
   .page {
     margin: 8px auto;
-    padding: 0 10px 124px;
+    padding: 0 10px 20px;
     gap: 10px;
   }
 

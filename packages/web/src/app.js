@@ -1,7 +1,9 @@
 const wsUrl = resolveWsUrl();
 let ws = null;
 let reconnectTimer = null;
+let connectTimeoutTimer = null;
 const RESUME_STORAGE_KEY = 'mj_resume_session';
+const WS_CONNECT_TIMEOUT_MS = 6000;
 
 registerServiceWorker();
 
@@ -31,6 +33,9 @@ const state = {
   wsReadyState: 3,
   reconnectAttempts: 0,
   nextReconnectAt: 0,
+  connectStartedAt: 0,
+  lastConnectDurationMs: 0,
+  connectTimeouts: 0,
   activeRooms: [],
   lastGeneratedName: '',
   resumeSession: readResumeSession(),
@@ -82,14 +87,38 @@ function connectSocket({ resetBackoff = false } = {}) {
     return;
   }
 
+  state.connectStartedAt = Date.now();
+  if (connectTimeoutTimer) {
+    clearTimeout(connectTimeoutTimer);
+    connectTimeoutTimer = null;
+  }
+
   ws = new WebSocket(wsUrl);
   state.wsReadyState = ws.readyState;
   safeRender();
 
+  connectTimeoutTimer = setTimeout(() => {
+    if (!ws || ws.readyState !== WebSocket.CONNECTING) {
+      return;
+    }
+    state.connectTimeouts += 1;
+    state.lastSocketError = `连接超时(${WS_CONNECT_TIMEOUT_MS}ms)`;
+    try {
+      ws.close();
+    } catch {
+      // ignore
+    }
+  }, WS_CONNECT_TIMEOUT_MS);
+
   ws.addEventListener('open', () => {
+    if (connectTimeoutTimer) {
+      clearTimeout(connectTimeoutTimer);
+      connectTimeoutTimer = null;
+    }
     state.connected = true;
     state.wsReadyState = ws.readyState;
     state.lastOpenAt = Date.now();
+    state.lastConnectDurationMs = state.connectStartedAt ? (Date.now() - state.connectStartedAt) : 0;
     state.lastSocketError = '';
     state.lastCloseCode = '';
     state.lastCloseReason = '';
@@ -114,6 +143,10 @@ function connectSocket({ resetBackoff = false } = {}) {
   });
 
   ws.addEventListener('close', (event) => {
+    if (connectTimeoutTimer) {
+      clearTimeout(connectTimeoutTimer);
+      connectTimeoutTimer = null;
+    }
     state.connected = false;
     state.wsReadyState = ws.readyState;
     state.lastCloseCode = String(event.code ?? '');
@@ -124,6 +157,10 @@ function connectSocket({ resetBackoff = false } = {}) {
   });
 
   ws.addEventListener('error', (event) => {
+    if (connectTimeoutTimer) {
+      clearTimeout(connectTimeoutTimer);
+      connectTimeoutTimer = null;
+    }
     state.wsReadyState = ws.readyState;
     state.lastSocketError = event?.message || 'WebSocket error';
     safeRender();
@@ -338,7 +375,9 @@ function render() {
     `lastOpenAt: ${formatTime(state.lastOpenAt)}`,
     `lastMessageAt: ${formatTime(state.lastMessageAt)}`,
     `lastClose: code=${state.lastCloseCode || '-'} reason=${state.lastCloseReason || '-'}`,
-    `lastError: ${state.lastSocketError || '-'}`
+    `lastError: ${state.lastSocketError || '-'}` ,
+    `lastConnectDurationMs: ${state.lastConnectDurationMs || 0}`,
+    `connectTimeouts: ${state.connectTimeouts || 0}`
   ].join('\n');
 
   el.roomInfo.textContent = `房间号：${state.roomId || '-'} | 房间状态：${roomStatus} | 阶段：${phase} | 当前局次：${state.roomState?.roundNo || 0}/${maxRounds} | 我的座位：${seat ?? '-'} | 本局分数：${state.you?.score ?? '-'} | 我的总分：${mySeatState?.totalScore ?? '-'} | 再来一局确认：${rematchReady}/${occupiedSeats || 4} | 无真人在线关房：${idleCloseText}`;

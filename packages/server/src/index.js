@@ -32,6 +32,9 @@ const STATIC_FILES = new Map([
 const rooms = new Map();
 const connections = new Map();
 const BOT_ACTION_DELAY_MS = 120;
+const BOT_ACTION_DELAY_WITH_HUMAN_MS = 1000;
+const ROOM_IDLE_CLOSE_MS = 30 * 60 * 1000;
+const DEFAULT_MAX_ROUNDS = 8;
 
 const httpServer = createServer(async (req, res) => {
   if (req.url === '/api/health') {
@@ -211,7 +214,11 @@ function handleCreateRoom(client) {
     reactionIntents: new Map(),
     rematchReadySeats: new Set(),
     botActionTimer: null,
+    idleCloseTimer: null,
+    idleCloseDeadlineAt: 0,
     roundNo: 0,
+    maxRounds: DEFAULT_MAX_ROUNDS,
+    matchFinished: false,
     settlementRecorded: false,
     roundHistory: []
   };
@@ -429,6 +436,9 @@ function handleRequestRematch(client) {
   if (!room.game || room.game.phase !== 'settlement') {
     throw new Error('REMATCH_NOT_AVAILABLE');
   }
+  if (room.matchFinished) {
+    throw new Error('MATCH_FINISHED');
+  }
 
   room.rematchReadySeats.add(client.seat);
   emitRoomState(room);
@@ -470,14 +480,11 @@ function handleDisconnect(socket) {
   }
 
   if (shouldCloseRoom(room)) {
-    if (room.botActionTimer) {
-      clearTimeout(room.botActionTimer);
-      room.botActionTimer = null;
-    }
-    rooms.delete(room.id);
+    closeRoom(room);
     return;
   }
 
+  refreshRoomIdleClosePolicy(room);
   emitRoomState(room);
   if (room.game) {
     emitGameState(room);
@@ -485,10 +492,14 @@ function handleDisconnect(socket) {
 }
 
 function canStart(room) {
-  return room.players.every((player) => player && player.ready) && !room.game;
+  return room.players.every((player) => player && player.ready) && !room.game && !room.matchFinished;
 }
 
 function startGame(room) {
+  if (room.matchFinished) {
+    throw new Error('MATCH_FINISHED');
+  }
+
   room.game = createInitialGame();
   room.reactionIntents.clear();
   room.rematchReadySeats.clear();
@@ -535,6 +546,7 @@ function bindClientToSeat(room, client, seatState) {
     name: seatState.name,
     resumeToken: seatState.resumeToken ?? null
   });
+  refreshRoomIdleClosePolicy(room);
 }
 
 function seatBot(room, seat) {
@@ -552,13 +564,19 @@ function seatBot(room, seat) {
 }
 
 function emitRoomState(room) {
+  refreshRoomIdleClosePolicy(room);
+
   const payload = {
     roomId: room.id,
     hasGame: Boolean(room.game),
     phase: room.game?.phase ?? null,
     rematchReadySeats: [...room.rematchReadySeats],
     roundNo: room.roundNo,
+    maxRounds: room.maxRounds,
+    matchFinished: room.matchFinished,
+    idleCloseDeadlineAt: room.idleCloseDeadlineAt || null,
     roundHistory: room.roundHistory,
+    finalStandings: buildFinalStandings(room),
     players: room.players.map((player, seat) => {
       if (!player) {
         return {
@@ -659,6 +677,7 @@ function recordSettlementIfNeeded(room) {
   }
 
   room.settlementRecorded = true;
+  updateMatchFinishedState(room);
 }
 
 function describePendingForSeat(pending, seat) {
@@ -797,10 +816,11 @@ function scheduleBotAction(room) {
     return;
   }
 
+  const delay = roomHasOnlineHumanPlayer(room) ? BOT_ACTION_DELAY_WITH_HUMAN_MS : BOT_ACTION_DELAY_MS;
   room.botActionTimer = setTimeout(() => {
     room.botActionTimer = null;
     processBotAction(room);
-  }, BOT_ACTION_DELAY_MS);
+  }, delay);
 }
 
 function processBotAction(room) {
@@ -813,6 +833,14 @@ function processBotAction(room) {
   }
 
   if (room.game.phase === 'settlement') {
+    if (room.matchFinished) {
+      return;
+    }
+    if (!roomHasOnlineHumanPlayer(room)) {
+      // 全员托管/机器人时，结算后等待真人回来，不自动续局
+      return;
+    }
+
     let changed = false;
     for (const player of room.players) {
       if (!isAutoPilotPlayer(player)) {
@@ -1123,7 +1151,7 @@ function createRoomId() {
 function listActiveRooms() {
   const out = [];
   for (const room of rooms.values()) {
-    if (!roomHasHumanPlayers(room)) {
+    if (!roomHasOnlineHumanPlayer(room)) {
       continue;
     }
 
@@ -1149,16 +1177,81 @@ function listActiveRooms() {
   return out;
 }
 
-function roomHasHumanPlayers(room) {
-  return room.players.some((player) => player && !player.isBot);
-}
-
 function isAutoPilotPlayer(player) {
   return Boolean(player && (player.isBot || player.auto));
 }
 
+function roomHasOnlineHumanPlayer(room) {
+  return room.players.some((player) => player && !player.isBot && player.online);
+}
+
+function refreshRoomIdleClosePolicy(room) {
+  if (roomHasOnlineHumanPlayer(room)) {
+    if (room.idleCloseTimer) {
+      clearTimeout(room.idleCloseTimer);
+      room.idleCloseTimer = null;
+    }
+    room.idleCloseDeadlineAt = 0;
+    return;
+  }
+
+  if (room.idleCloseTimer) {
+    return;
+  }
+
+  room.idleCloseDeadlineAt = Date.now() + ROOM_IDLE_CLOSE_MS;
+  room.idleCloseTimer = setTimeout(() => {
+    room.idleCloseTimer = null;
+    const target = rooms.get(room.id);
+    if (!target) {
+      return;
+    }
+    if (!roomHasOnlineHumanPlayer(target)) {
+      closeRoom(target);
+    } else {
+      refreshRoomIdleClosePolicy(target);
+    }
+  }, ROOM_IDLE_CLOSE_MS);
+}
+
+function closeRoom(room) {
+  if (room.botActionTimer) {
+    clearTimeout(room.botActionTimer);
+    room.botActionTimer = null;
+  }
+  if (room.idleCloseTimer) {
+    clearTimeout(room.idleCloseTimer);
+    room.idleCloseTimer = null;
+  }
+  rooms.delete(room.id);
+}
+
+function updateMatchFinishedState(room) {
+  if (room.matchFinished) {
+    return;
+  }
+  if (room.roundNo >= room.maxRounds) {
+    room.matchFinished = true;
+  }
+}
+
+function buildFinalStandings(room) {
+  if (!room.matchFinished) {
+    return [];
+  }
+  return room.players
+    .filter((player) => Boolean(player))
+    .map((player) => ({
+      seat: player.seat,
+      name: player.name,
+      isBot: Boolean(player.isBot),
+      totalScore: player.totalScore ?? 0
+    }))
+    .sort((a, b) => b.totalScore - a.totalScore || a.seat - b.seat);
+}
+
 function shouldCloseRoom(room) {
-  return room.players.every((player) => !player) || !roomHasHumanPlayers(room);
+  return room.players.every((player) => !player);
 }
 
 function getLanIpv4Addresses() {

@@ -53,6 +53,7 @@ const el = {
   totals: document.querySelector('#totals'),
   history: document.querySelector('#history'),
   trend: document.querySelector('#trend'),
+  finalStats: document.querySelector('#finalStats'),
   gameInfo: document.querySelector('#gameInfo'),
   actionBar: document.querySelector('#actionBar'),
   hand: document.querySelector('#hand'),
@@ -306,6 +307,8 @@ function render() {
   const occupiedSeats = (state.roomState?.players || []).filter((p) => p.occupied).length;
   const canAddBot = Boolean(state.roomState && !state.roomState.hasGame && occupiedSeats < 4);
   const mySeatState = (state.roomState?.players || []).find((p) => p.occupied && p.seat === seat);
+  const maxRounds = state.roomState?.maxRounds || 8;
+  const idleCloseText = formatIdleCloseCountdown(state.roomState?.idleCloseDeadlineAt);
 
   const base = state.connected
     ? `已连接 ${wsUrl} | clientId=${state.clientId || '-'} | 昵称=${state.name || '-'}`
@@ -322,13 +325,14 @@ function render() {
     `lastError: ${state.lastSocketError || '-'}`
   ].join('\n');
 
-  el.roomInfo.textContent = `房间号：${state.roomId || '-'} | 房间状态：${roomStatus} | 阶段：${phase} | 当前局次：${state.roomState?.roundNo || 0} | 我的座位：${seat ?? '-'} | 本局分数：${state.you?.score ?? '-'} | 我的总分：${mySeatState?.totalScore ?? '-'} | 再来一局确认：${rematchReady}/${occupiedSeats || 4}`;
+  el.roomInfo.textContent = `房间号：${state.roomId || '-'} | 房间状态：${roomStatus} | 阶段：${phase} | 当前局次：${state.roomState?.roundNo || 0}/${maxRounds} | 我的座位：${seat ?? '-'} | 本局分数：${state.you?.score ?? '-'} | 我的总分：${mySeatState?.totalScore ?? '-'} | 再来一局确认：${rematchReady}/${occupiedSeats || 4} | 无真人在线关房：${idleCloseText}`;
   el.addBotBtn.disabled = !canAddBot;
 
   renderPlayers();
   renderTotals();
   renderHistory();
   renderTrend();
+  renderFinalStats();
   renderActiveRooms();
   renderGameInfo();
   renderHand();
@@ -448,6 +452,26 @@ function renderTrend() {
     .sort((a, b) => a.seat - b.seat)
     .map((p) => `座位${p.seat} ${p.name}: ${seriesBySeat.get(p.seat).join(' -> ')}`);
   el.trend.textContent = lines.join('\n');
+}
+
+function renderFinalStats() {
+  const finished = Boolean(state.roomState?.matchFinished);
+  if (!finished) {
+    el.finalStats.textContent = '未结束（默认最多8局）';
+    return;
+  }
+
+  const standings = state.roomState?.finalStandings || [];
+  if (standings.length === 0) {
+    el.finalStats.textContent = '本房间对局已结束';
+    return;
+  }
+
+  const lines = [
+    `本房间已完成 ${state.roomState?.roundNo || 0}/${state.roomState?.maxRounds || 8} 局，最终排名如下：`,
+    ...standings.map((x, idx) => `${idx + 1}. 座位${x.seat} ${x.name}${x.isBot ? '(机器人)' : ''}：${x.totalScore}`)
+  ];
+  el.finalStats.textContent = lines.join('\n');
 }
 
 function renderGameInfo() {
@@ -612,6 +636,20 @@ function renderActionBar() {
   }
 
   if (state.gameState.phase === 'settlement') {
+    if (state.roomState?.matchFinished) {
+      const done = createButton('本房间已达局数上限');
+      done.disabled = true;
+      el.actionBar.appendChild(done);
+      return;
+    }
+
+    if (!hasOnlineHumanPlayer()) {
+      const waitBtn = createButton('等待真人玩家回到房间后再继续');
+      waitBtn.disabled = true;
+      el.actionBar.appendChild(waitBtn);
+      return;
+    }
+
     const acceptedSeats = state.roomState?.rematchReadySeats || [];
     const accepted = acceptedSeats.includes(state.you.seat);
     const btn = createButton(accepted ? '已确认再来一局' : '再来一局');
@@ -1027,6 +1065,23 @@ function socketStateText(stateCode) {
 function formatTime(ts) {
   if (!ts) return '-';
   return new Date(ts).toLocaleTimeString();
+}
+
+function formatIdleCloseCountdown(ts) {
+  if (!ts) {
+    return '-';
+  }
+  const remainMs = ts - Date.now();
+  if (remainMs <= 0) {
+    return '即将关闭';
+  }
+  const mins = Math.floor(remainMs / 60000);
+  const secs = Math.floor((remainMs % 60000) / 1000);
+  return `${mins}分${secs.toString().padStart(2, '0')}秒`;
+}
+
+function hasOnlineHumanPlayer() {
+  return (state.roomState?.players || []).some((p) => p.occupied && !p.isBot && p.online);
 }
 
 function generateRandomName() {

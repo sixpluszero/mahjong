@@ -1,13 +1,22 @@
+/**
+ * 中文：浏览器端主控制器。
+ * 负责 WebSocket 连接与重连、服务端消息同步、本地 UI 状态管理、以及各区域渲染与交互派发。
+ * EN: Browser-side main controller.
+ * Handles WebSocket lifecycle, server message synchronization, local UI state, and render/action dispatch.
+ */
+
 const wsUrl = resolveWsUrl();
 let ws = null;
 let reconnectTimer = null;
 let connectTimeoutTimer = null;
+/** 中文：断线重连用的会话快照存储键。EN: LocalStorage key used for session resume after reconnect. */
 const RESUME_STORAGE_KEY = 'mj_resume_session';
 const WS_CONNECT_TIMEOUT_MS = 12000;
 const WS_CONNECT_TIMEOUT_MAX_MS = 30000;
 
 registerServiceWorker();
 
+/** 中文：前端单一状态树，驱动全部渲染与交互判定。EN: Single client-side state tree that drives rendering and action gating. */
 const state = {
   clientId: null,
   name: localStorage.getItem('mj_name') || '',
@@ -44,6 +53,7 @@ const state = {
   resumePending: false
 };
 
+/** 中文：关键 DOM 引用缓存，避免重复查询并集中管理视图出口。EN: Cached DOM references for all major UI output regions. */
 const el = {
   nameInput: document.querySelector('#nameInput'),
   randomNameBtn: document.querySelector('#randomNameBtn'),
@@ -76,6 +86,12 @@ const el = {
 
 el.nameInput.value = state.name;
 
+/**
+ * 中文：建立 WebSocket 连接并注册事件监听。
+ * 包含连接超时保护、自动恢复 hello/resume/list_rooms 流程，以及退避重连状态重置。
+ * EN: Open WebSocket connection and wire listeners.
+ * Includes connection-timeout protection, automatic hello/resume/list_rooms bootstrap, and backoff reset support.
+ */
 function connectSocket({ resetBackoff = false } = {}) {
   if (resetBackoff) {
     state.reconnectAttempts = 0;
@@ -186,6 +202,7 @@ function connectSocket({ resetBackoff = false } = {}) {
   ws.addEventListener('message', (event) => handleMessage(event));
 }
 
+/** 中文：指数退避重连调度（离线时仅提示，不主动拨号）。EN: Exponential-backoff reconnect scheduler with offline-aware pause. */
 function scheduleReconnect() {
   if (reconnectTimer) {
     return;
@@ -208,6 +225,12 @@ function scheduleReconnect() {
   }, delay);
 }
 
+/**
+ * 中文：统一处理服务端消息并同步本地状态。
+ * 关键副作用：记录身份、更新房间/牌局视图、恢复会话状态与错误提示。
+ * EN: Central server-message handler that synchronizes local state.
+ * Side effects include identity updates, room/game view refresh, resume-session maintenance, and notices.
+ */
 function handleMessage(event) {
   try {
     state.lastMessageAt = Date.now();
@@ -393,6 +416,7 @@ setInterval(() => {
   }
 }, 3000);
 
+/** 中文：在页面 load 后注册 SW，失败仅记录日志不阻断主流程。EN: Register service worker on load; failures are logged but non-fatal. */
 function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) {
     return;
@@ -405,6 +429,10 @@ function registerServiceWorker() {
   });
 }
 
+/**
+ * 中文：顶层渲染入口，按当前状态刷新诊断信息、房间信息与各功能面板。
+ * EN: Top-level render entrypoint that refreshes diagnostics, room summary, and all UI panels.
+ */
 function render() {
   const seat = state.you?.seat;
   const phase = state.gameState?.phase || '未开局';
@@ -618,6 +646,7 @@ function renderGameInfo() {
   ].join('\n');
 }
 
+/** 中文：渲染手牌区并绑定点击逻辑（换三张选择或出牌）。EN: Render hand tiles and bind click actions (exchange select or discard). */
 function renderHand() {
   const hand = state.you?.hand || [];
   const phase = state.gameState?.phase;
@@ -717,6 +746,12 @@ function renderDiscards() {
   el.discards.replaceChildren(frag);
 }
 
+/**
+ * 中文：动作条状态机：
+ * 按阶段优先渲染换三张/定缺/结算按钮，再处理响应按钮，最后才显示当前回合可执行动作。
+ * EN: Action-bar state machine:
+ * renders exchange/lack/settlement controls first, then reaction controls, then active-turn actions.
+ */
 function renderActionBar() {
   el.actionBar.innerHTML = '';
 
@@ -836,6 +871,7 @@ function renderActionBar() {
   }
 }
 
+/** 中文：渲染结算事件流与最近一局汇总。EN: Render settlement event feed and latest round summary. */
 function renderEvents() {
   const events = state.gameState?.settlementEvents || [];
   const tail = events.slice(-10);
@@ -952,6 +988,7 @@ function isValidExchangeSelection(hand, ids) {
   return tiles.every((t) => t.suit === tiles[0].suit);
 }
 
+/** 中文：阶段切换时重置前端临时态，避免旧阶段残留操作污染。EN: Reset phase-scoped UI transient state on phase transitions. */
 function onPhaseChange(prevPhase, nextPhase) {
   if (prevPhase === nextPhase) return;
   if (nextPhase === 'exchange') {
@@ -1168,6 +1205,7 @@ function logStatus(message) {
   safeRender();
 }
 
+/** 中文：统一上行消息发送；连接未就绪时直接提示并保持 UI 一致。EN: Unified outbound message sender with not-connected guard. */
 function send(type, payload) {
   if (!ws || ws.readyState !== 1) {
     setNotice('连接未建立');
@@ -1182,6 +1220,7 @@ function setNotice(message) {
   state.notice = message;
 }
 
+/** 中文：渲染保护层，捕获异常避免 UI 全量崩溃。EN: Render safety wrapper that prevents uncaught render failures from breaking the UI. */
 function safeRender() {
   try {
     render();
@@ -1192,6 +1231,7 @@ function safeRender() {
   }
 }
 
+/** 中文：基于手牌差分追踪“最新摸牌”高亮目标。EN: Track latest-drawn tile by diffing previous/current hand ids for visual highlight. */
 function trackLatestDraw() {
   if (!state.you?.hand) {
     return;
@@ -1230,6 +1270,7 @@ function shouldHighlightLatestDraw() {
 }
 
 
+/** 中文：复制工具：优先 Clipboard API，降级到 textarea + execCommand。EN: Clipboard helper with modern API first and legacy fallback. */
 async function copyText(text, okMessage) {
   try {
     if (navigator.clipboard?.writeText) {
@@ -1320,6 +1361,7 @@ function isIOSSafari() {
   return isIOS && isSafari;
 }
 
+/** 中文：解析 WS 地址：优先查询参数 `ws`，否则按当前页面协议/主机推导。EN: Resolve WS endpoint from `ws` query param or current page origin. */
 function resolveWsUrl() {
   const qs = new URLSearchParams(location.search);
   const qsWs = qs.get('ws');
@@ -1329,6 +1371,7 @@ function resolveWsUrl() {
   return `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`;
 }
 
+/** 中文：读取并校验本地可恢复会话快照。EN: Read and validate resumable session snapshot from local storage. */
 function readResumeSession() {
   try {
     const raw = localStorage.getItem(RESUME_STORAGE_KEY);
@@ -1345,6 +1388,7 @@ function readResumeSession() {
   }
 }
 
+/** 中文：持久化当前恢复会话（或清除无效快照）。EN: Persist current resume session (or remove snapshot when empty). */
 function persistResumeSession() {
   if (!state.resumeSession) {
     localStorage.removeItem(RESUME_STORAGE_KEY);
@@ -1353,6 +1397,7 @@ function persistResumeSession() {
   localStorage.setItem(RESUME_STORAGE_KEY, JSON.stringify(state.resumeSession));
 }
 
+/** 中文：清空恢复会话，通常用于恢复失败后的回退。EN: Clear stored resume session, typically after resume failure fallback. */
 function clearResumeSession() {
   state.resumeSession = null;
   localStorage.removeItem(RESUME_STORAGE_KEY);

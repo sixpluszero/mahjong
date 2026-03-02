@@ -1,8 +1,22 @@
 import { calculateWinPayment, evaluateFans, hasLackSuitTiles, isDiscardAllowed } from './rules.js';
 import { createDeck, parseTileCode, SUITS } from './tiles.js';
 
+/**
+ * 中文：共享对局状态机（纯函数 + 原地状态更新风格）。
+ * 负责从开局、换三张、定缺、出牌响应，到结算的完整阶段流转。
+ * EN: Shared round state machine (pure orchestration with in-place state mutation).
+ * Drives the full lifecycle from initial dealing to exchange/lack/play/reaction and settlement.
+ */
+
+/** 中文：换三张允许的传牌方向。EN: Allowed exchange directions for the "swap three tiles" phase. */
 const EXCHANGE_DIRECTIONS = ['clockwise', 'counterclockwise', 'across'];
 
+/**
+ * 中文：创建一局初始状态并完成发牌。
+ * 输入配置可覆盖庄家位、番数上下限、底分、牌墙和随机源。
+ * EN: Create a fresh game state and deal opening hands.
+ * Config can override dealer seat, fan limits, base score, deck, and random source.
+ */
 export function createInitialGame(config = {}) {
   const seatCount = 4;
   const dealerSeat = config.dealerSeat ?? 0;
@@ -57,6 +71,7 @@ export function createInitialGame(config = {}) {
   };
 }
 
+/** 中文：提交换三张选择，四家都提交后自动结算换牌并切到定缺阶段。EN: Submit exchange picks and auto-resolve once all seats are ready. */
 export function submitExchangeSelection(state, seat, tileIds) {
   assertPhase(state, 'exchange');
   const player = getPlayer(state, seat);
@@ -81,6 +96,7 @@ export function submitExchangeSelection(state, seat, tileIds) {
   return state;
 }
 
+/** 中文：记录玩家定缺花色，全部完成后切换到出牌阶段。EN: Assign lack suit for one seat; transitions to play when all seats are assigned. */
 export function assignLackSuit(state, seat, lackSuit) {
   assertPhase(state, 'lack');
 
@@ -99,6 +115,10 @@ export function assignLackSuit(state, seat, lackSuit) {
   return state;
 }
 
+/**
+ * 中文：执行出牌主流程：合法性校验 -> 从手牌移除 -> 生成可响应列表 -> 决定轮转或等待响应。
+ * EN: Core discard flow: validate -> remove from hand -> build reaction candidates -> either advance turn or wait.
+ */
 export function discardTile(state, seat, tileId) {
   assertPhase(state, 'play');
   ensureNoPendingReactions(state);
@@ -145,6 +165,10 @@ export function discardTile(state, seat, tileId) {
   return state;
 }
 
+/**
+ * 中文：统一处理吃碰杠胡响应优先级（胡 > 杠 > 碰 > 过）并推进回合状态。
+ * EN: Resolve concurrent reactions with priority (hu > gang > peng > pass) and advance state accordingly.
+ */
 export function resolveReactions(state, actions) {
   const pending = state.pendingReactions;
   if (!pending) {
@@ -237,6 +261,7 @@ export function resolveReactions(state, actions) {
   return state;
 }
 
+/** 中文：按规则从牌墙头/尾摸牌，并更新最后摸牌上下文。EN: Draw from wall head/tail and update draw metadata used by later scoring. */
 export function drawTileForSeat(state, seat, useTail = false) {
   assertPhase(state, 'play');
 
@@ -270,6 +295,7 @@ export function drawTileForSeat(state, seat, useTail = false) {
   return tile;
 }
 
+/** 中文：声明自摸胡并执行多家付款结算。EN: Declare self-draw win and settle payments from all active opponents. */
 export function declareSelfDrawHu(state, seat) {
   assertPhase(state, 'play');
   ensureNoPendingReactions(state);
@@ -314,6 +340,7 @@ export function declareSelfDrawHu(state, seat) {
   return state;
 }
 
+/** 中文：无副作用检测当前座位是否可自摸。EN: Side-effect-free predicate for whether seat can currently self-hu. */
 export function canDeclareSelfDrawHu(state, seat) {
   if (state.phase !== 'play') {
     return false;
@@ -342,6 +369,7 @@ export function canDeclareSelfDrawHu(state, seat) {
   return Boolean(huResult?.canHu);
 }
 
+/** 中文：执行暗杠（移除 4 张、记入副露、结算并补牌）。EN: Execute concealed kong: consume 4 tiles, settle, then draw replacement. */
 export function declareAnGang(state, seat, tileId) {
   assertPhase(state, 'play');
   ensureNoPendingReactions(state);
@@ -375,6 +403,7 @@ export function declareAnGang(state, seat, tileId) {
   return state;
 }
 
+/** 中文：执行补杠；若可被抢杠胡则先进入待响应分支。EN: Execute add-kong, or enter rob-kong pending state when opponents can hu. */
 export function declareBuGang(state, seat, tileId) {
   assertPhase(state, 'play');
   ensureNoPendingReactions(state);
@@ -411,6 +440,7 @@ export function declareBuGang(state, seat, tileId) {
   return state;
 }
 
+/** 中文：生成对外公开快照（隐藏他人手牌，仅暴露必要局面信息）。EN: Build public snapshot while hiding private hand tiles. */
 export function getPublicSnapshot(state) {
   return {
     phase: state.phase,
@@ -434,6 +464,7 @@ export function getPublicSnapshot(state) {
   };
 }
 
+/** 中文：换三张结算：先移除选中牌，再按方向发给目标座位，最后进入定缺阶段。EN: Resolve exchange by removing selected tiles, delivering by direction, then entering lack phase. */
 function resolveExchange(state) {
   const outgoing = state.players.map((player) => ({
     seat: player.seat,
@@ -458,6 +489,7 @@ function resolveExchange(state) {
   state.phase = 'lack';
 }
 
+/** 中文：根据方向计算换牌目标座位。EN: Compute exchange target seat from direction. */
 function getExchangeTargetSeat(seat, direction) {
   if (direction === 'clockwise') {
     return (seat + 1) % 4;
@@ -470,6 +502,7 @@ function getExchangeTargetSeat(seat, direction) {
   return (seat + 2) % 4;
 }
 
+/** 中文：解析并校验换牌方向，支持随机模式。EN: Resolve and validate exchange direction, including random mode. */
 function resolveExchangeDirection(direction, randomFn = Math.random) {
   if (!direction || direction === 'random') {
     const index = Math.floor(randomFn() * EXCHANGE_DIRECTIONS.length);
@@ -483,6 +516,7 @@ function resolveExchangeDirection(direction, randomFn = Math.random) {
   return direction;
 }
 
+/** 中文：本轮无人可响应时推进到下一个未胡座位并摸牌。EN: Advance to next non-winning seat and auto-draw when no reaction blocks progress. */
 function advanceTurnAfterPass(state, fromSeat) {
   const nextSeat = findNextActiveSeat(state, fromSeat);
 
@@ -506,6 +540,7 @@ function findNextActiveSeat(state, fromSeat) {
   return null;
 }
 
+/** 中文：构建一次弃牌后的可响应列表（胡/杠/碰资格）。EN: Build per-seat reaction options after a discard. */
 function buildPendingReactions(state, fromSeat, tile, context = {}) {
   const options = [];
 
@@ -547,6 +582,7 @@ function buildPendingReactions(state, fromSeat, tile, context = {}) {
   };
 }
 
+/** 中文：应用副露领取（碰/明杠），并从手牌扣除对应数量同牌。EN: Apply claim meld (peng/ming-gang) and remove required matching tiles. */
 function applyClaimMeld(state, seat, tile, meldType, requiredCount) {
   const player = getPlayer(state, seat);
   const removeIndices = [];
@@ -575,6 +611,7 @@ function applyClaimMeld(state, seat, tile, meldType, requiredCount) {
   });
 }
 
+/** 中文：弃牌被响应后标记为已领取，供前端展示。EN: Mark most recent discard as claimed for UI/history semantics. */
 function markLatestDiscardClaimed(state) {
   const latest = state.discardPool[state.discardPool.length - 1];
   if (latest) {
@@ -586,6 +623,7 @@ function countActiveNonWinners(state) {
   return state.players.filter((player) => !player.hasHu).length;
 }
 
+/** 中文：点炮胡结算：放铳者向胡牌者支付。EN: Discard-win settlement where discarder pays winner. */
 function settleDiscardHu(state, { winnerSeat, fromSeat, tile, huResult, winMode = 'dian_pao' }) {
   if (!huResult?.canHu) {
     return;
@@ -606,6 +644,7 @@ function settleDiscardHu(state, { winnerSeat, fromSeat, tile, huResult, winMode 
   });
 }
 
+/** 中文：自摸结算：所有未胡玩家向胡牌者支付。EN: Self-draw settlement where all active non-winners pay winner. */
 function settleSelfDrawHu(state, { winnerSeat, huResult }) {
   const payment = calculateHuPayment(state, huResult);
   const payers = state.players
@@ -629,6 +668,7 @@ function settleSelfDrawHu(state, { winnerSeat, huResult }) {
   });
 }
 
+/** 中文：明杠结算：点杠方单独支付。EN: Exposed-kong settlement paid by the discarder. */
 function settleMingGang(state, { winnerSeat, fromSeat }) {
   const amount = state.config.baseScore;
   applyTransfer(state, fromSeat, winnerSeat, amount);
@@ -641,6 +681,7 @@ function settleMingGang(state, { winnerSeat, fromSeat }) {
   });
 }
 
+/** 中文：暗杠结算：其余未胡玩家共同支付。EN: Concealed-kong settlement shared by all active opponents. */
 function settleAnGang(state, { winnerSeat }) {
   const amount = state.config.baseScore;
   const payers = state.players
@@ -661,6 +702,7 @@ function settleAnGang(state, { winnerSeat }) {
   });
 }
 
+/** 中文：补杠结算：其余未胡玩家共同支付。EN: Add-kong settlement shared by all active opponents. */
 function settleBuGang(state, { winnerSeat }) {
   const amount = state.config.baseScore;
   const payers = state.players
@@ -694,11 +736,13 @@ function applyTransfer(state, fromSeat, toSeat, amount) {
   state.players[toSeat].score += amount;
 }
 
+/** 中文：结束当前局并切换到结算阶段。EN: Finish the round and transition into settlement phase. */
 function finishRound(state, reason) {
   state.phase = 'settlement';
   state.settlementReason = reason;
 }
 
+/** 中文：构建“抢杠胡”可选响应列表。EN: Build rob-kong reaction options (hu only). */
 function buildRobKongOptions(state, fromSeat, tile) {
   const options = [];
 
@@ -729,6 +773,7 @@ function buildRobKongOptions(state, fromSeat, tile) {
   return options;
 }
 
+/** 中文：实际落地补杠操作（从碰升级为补杠并计分）。EN: Materialize add-kong by upgrading an existing peng meld and settling score. */
 function applyBuGang(state, seat, tile) {
   const player = getPlayer(state, seat);
   const meld = player.melds.find((item) => item.type === 'peng' && sameKind(item.tile, tile));
@@ -741,6 +786,7 @@ function applyBuGang(state, seat, tile) {
   settleBuGang(state, { winnerSeat: seat });
 }
 
+/** 中文：对单个玩家进行胡牌评估（含副露补齐成 14 张语义）。EN: Evaluate hu eligibility for one player, including synthetic meld tiles. */
 function evaluateHuForPlayer(state, player, extraTiles, context) {
   if (hasLackSuitTiles(player.hand, player.lackSuit)) {
     return {
@@ -761,6 +807,7 @@ function evaluateHuForPlayer(state, player, extraTiles, context) {
   });
 }
 
+/** 中文：将副露转换为评估用合成牌，统一交给规则引擎计番。EN: Expand melds into synthetic tiles so rule engine can score a complete set. */
 function buildWinEvalTiles(player, extraTiles) {
   const tiles = [...player.hand, ...extraTiles];
 
@@ -860,6 +907,7 @@ function sortHands(players) {
   }
 }
 
+/** 中文：稳定排序手牌（花色 -> 点数 -> id），保证展示和测试确定性。EN: Deterministic hand sort by suit/rank/id for stable UI and tests. */
 function sortHand(hand) {
   hand.sort((a, b) => {
     const suitDelta = suitWeight(a.suit) - suitWeight(b.suit);
@@ -887,6 +935,7 @@ function suitWeight(suit) {
   return 2;
 }
 
+/** 中文：Fisher-Yates 洗牌实现。EN: Fisher-Yates shuffle implementation. */
 function shuffleDeck(deck, randomFn = Math.random) {
   const next = [...deck];
 
@@ -898,6 +947,7 @@ function shuffleDeck(deck, randomFn = Math.random) {
   return next;
 }
 
+/** 中文：测试辅助：从短码构造指定 id 后缀的牌对象。EN: Test helper that builds tile object from code with a deterministic id suffix. */
 export function tileFromCode(code, idSuffix = 'test') {
   const tile = parseTileCode(code);
   return {

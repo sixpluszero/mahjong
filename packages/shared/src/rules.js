@@ -1,7 +1,16 @@
 import { buildCounts, listSuitUsage, SUITS } from './tiles.js';
 
+/**
+ * 中文：四川麻将核心规则判定模块。
+ * 职责：缺门约束、和牌形态识别、番型累计、以及番数到支付倍率的转换。
+ * EN: Core Sichuan-mahjong rules engine.
+ * Responsibilities: lack-suit constraints, hand-shape detection, fan aggregation, and payment scaling.
+ */
+
+/** 中文：将牌可用点数（将对）集合。EN: Allowed pair ranks for Jiang Dui pattern. */
 const JIANG_RANKS = new Set([2, 5, 8]);
 
+/** 中文：检查手牌中是否仍含“缺门”花色。EN: Check whether hand still contains the declared lack suit. */
 export function hasLackSuitTiles(tiles, lackSuit) {
   if (!lackSuit) {
     return false;
@@ -10,6 +19,10 @@ export function hasLackSuitTiles(tiles, lackSuit) {
   return tiles.some((tile) => tile.suit === lackSuit);
 }
 
+/**
+ * 中文：出牌合法性校验：若仍有缺门牌，必须先打缺门。
+ * EN: Discard legality check: if lack-suit tiles still exist, discard must come from that suit first.
+ */
 export function isDiscardAllowed(handTiles, discardTile, lackSuit) {
   if (!lackSuit) {
     return true;
@@ -19,6 +32,10 @@ export function isDiscardAllowed(handTiles, discardTile, lackSuit) {
   return !hasLack || discardTile.suit === lackSuit;
 }
 
+/**
+ * 中文：识别 14 张牌是否构成可胡牌型（七对或标准 4 面子 + 1 将）。
+ * EN: Detect whether 14 tiles form a winning shape (seven pairs or standard 4 melds + 1 pair).
+ */
 export function detectWinShape(tiles) {
   if (tiles.length !== 14) {
     return {
@@ -56,6 +73,14 @@ export function detectWinShape(tiles) {
   };
 }
 
+/**
+ * 中文：综合评估可胡性与番型明细。
+ * 输入：完整牌集合、上下文（自摸/杠上等）、缺门信息与封顶配置。
+ * 输出：是否可胡、原始番、封顶番、倍率、命中牌型与失败原因。
+ * EN: Evaluate whether the hand can win and compute detailed fan breakdown.
+ * Inputs: full tiles, win context flags, lack-suit info, and fan cap config.
+ * Output: win flag, raw/capped fan, multiplier, matched patterns, and failure reason.
+ */
 export function evaluateFans({
   tiles,
   context = {},
@@ -206,11 +231,13 @@ export function evaluateFans({
   };
 }
 
+/** 中文：将番数映射为实际支付分。EN: Convert fan to concrete payment amount. */
 export function calculateWinPayment({ fan, maxFan = 16, baseScore = 1 }) {
   const cappedFan = Math.min(fan, maxFan);
   return baseScore * (2 ** cappedFan);
 }
 
+/** 中文：七对检测（四张同牌按两对并标记龙七对）。EN: Seven-pairs detector with dragon-pair handling for quads. */
 function detectSevenPairs(counts) {
   let pairUnits = 0;
   let hasDragonPair = false;
@@ -243,6 +270,7 @@ function detectSevenPairs(counts) {
   };
 }
 
+/** 中文：标准和牌检测：枚举将牌后验证剩余是否可拆为面子。EN: Standard hand detection by trying every possible pair first. */
 function detectStandardHand(counts) {
   for (let i = 0; i < counts.length; i += 1) {
     if (counts[i] < 2) {
@@ -266,6 +294,7 @@ function detectStandardHand(counts) {
   };
 }
 
+/** 中文：碰碰胡检测：去将后剩余计数需全部为 3 的倍数。EN: All-triplets check after removing one pair candidate. */
 function detectAllTriplets(counts) {
   for (let i = 0; i < counts.length; i += 1) {
     if (counts[i] < 2) {
@@ -291,6 +320,7 @@ function detectAllTriplets(counts) {
   return false;
 }
 
+/** 中文：按花色拆分后分别验证能否完全组成面子。EN: Validate meld-composability suit by suit. */
 function canFormAllMelds(counts) {
   for (let suit = 0; suit < 3; suit += 1) {
     const start = suit * 9;
@@ -304,6 +334,12 @@ function canFormAllMelds(counts) {
   return true;
 }
 
+/**
+ * 中文：单门花色递归回溯：
+ * 优先尝试刻子与顺子分解，任一路径可完全清空即成立。
+ * EN: Recursive suit-level backtracking:
+ * try triplet/sequence decomposition; success when one path consumes all counts.
+ */
 function canFormSuitMelds(suitCounts) {
   const first = suitCounts.findIndex((count) => count > 0);
 

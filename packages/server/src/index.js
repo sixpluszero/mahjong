@@ -19,11 +19,20 @@ import {
   submitExchangeSelection
 } from '@mahjong/shared';
 
+/**
+ * 中文：Mahjong 服务端入口（HTTP 静态资源 + WebSocket 实时房间服务）。
+ * 主要职责：连接管理、房间/座位生命周期、对局指令路由、机器人托管、以及结算历史维护。
+ * EN: Mahjong server entrypoint (HTTP static serving + WebSocket realtime room service).
+ * Core duties: connection lifecycle, room/seat management, game command routing, bot autopilot, and settlement history.
+ */
+
+/** 中文：基础网络配置。EN: Base network configuration. */
 const PORT = Number(process.env.PORT ?? 8787);
 const HOST = process.env.HOST ?? '0.0.0.0';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const WEB_ROOT = path.resolve(__dirname, '../../web/src');
+/** 中文：白名单静态资源映射，避免路径穿越并保持返回类型确定。EN: Whitelisted static asset map for safe path resolution and deterministic content types. */
 const STATIC_FILES = new Map([
   ['/', { file: 'index.html', type: 'text/html; charset=utf-8' }],
   ['/app.js', { file: 'app.js', type: 'application/javascript; charset=utf-8' }],
@@ -31,14 +40,17 @@ const STATIC_FILES = new Map([
   ['/sw.js', { file: 'sw.js', type: 'application/javascript; charset=utf-8' }],
   ['/manifest.webmanifest', { file: 'manifest.webmanifest', type: 'application/manifest+json; charset=utf-8' }]
 ]);
+/** 中文：运行时内存态：房间集合与 socket->client 映射。EN: In-memory runtime stores: rooms and socket-to-client mapping. */
 const rooms = new Map();
 const connections = new Map();
+/** 中文：机器人动作延迟参数（有真人时放慢，便于观战/操作）。EN: Bot action delays (slower when humans are present for better UX). */
 const BOT_ACTION_DELAY_MS = 120;
 const BOT_ACTION_DELAY_WITH_HUMAN_MS = 1000;
 const ROOM_IDLE_CLOSE_MS = 30 * 60 * 1000;
 const DEFAULT_MAX_ROUNDS = 8;
 
 const WS_PING_INTERVAL_MS = 25000;
+/** 中文：WebSocket 健康度与事件统计快照，供排障接口查看。EN: WebSocket telemetry snapshot used by diagnostics endpoint. */
 const wsDebug = {
   startedAt: Date.now(),
   totals: {
@@ -56,6 +68,7 @@ const wsDebug = {
 };
 
 
+/** 中文：HTTP 层：健康检查、WS 调试信息与静态前端资源。EN: HTTP layer for healthcheck, WS diagnostics, and static frontend assets. */
 const httpServer = createServer(async (req, res) => {
   if (req.url === '/api/health') {
     res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
@@ -99,6 +112,7 @@ const httpServer = createServer(async (req, res) => {
 
 const wss = new WebSocketServer({ server: httpServer });
 
+/** 中文：每个新连接初始化 client 上下文并绑定消息/心跳/断连处理。EN: Initialize per-connection client context and bind message/heartbeat/disconnect handlers. */
 wss.on('connection', (socket, req) => {
   const client = {
     id: createId('c'),
@@ -159,6 +173,7 @@ wss.on('connection', (socket, req) => {
 });
 
 
+/** 中文：心跳循环：定期 ping，未 pong 的连接将被终止。EN: Heartbeat loop that pings clients and terminates stale sockets. */
 const wsHeartbeatTimer = setInterval(() => {
   for (const socket of wss.clients) {
     if (socket.isAlive === false) {
@@ -190,6 +205,7 @@ httpServer.listen(PORT, HOST, () => {
   console.log(`Mahjong WebSocket server listening on ${HOST}:${PORT}${lanHint}`);
 });
 
+/** 中文：统一消息入口：解析 JSON、按 type 分发到具体处理器，并做竞态容错。EN: Unified message dispatcher with JSON parsing, type routing, and benign-race tolerance. */
 function handleIncoming(socket, raw) {
   const client = connections.get(socket);
   if (!client) {
@@ -278,6 +294,7 @@ function handleIncoming(socket, raw) {
   }
 }
 
+/** 中文：`hello` 握手：记录昵称并回传确认。EN: `hello` handshake that sets display name and acknowledges. */
 function handleHello(client, payload) {
   const name = String(payload.name ?? '').trim();
   if (!name) {
@@ -291,6 +308,7 @@ function handleHello(client, payload) {
   });
 }
 
+/** 中文：创建房间并让发起人占 0 号位。EN: Create room and seat creator at seat 0. */
 function handleCreateRoom(client) {
   ensureNamed(client);
   ensureNoRoom(client);
@@ -317,6 +335,7 @@ function handleCreateRoom(client) {
   emitRoomState(room);
 }
 
+/** 中文：加入房间并分配首个空座。EN: Join existing room and assign first open seat. */
 function handleJoinRoom(client, payload) {
   ensureNamed(client);
   ensureNoRoom(client);
@@ -336,6 +355,7 @@ function handleJoinRoom(client, payload) {
   emitRoomState(room);
 }
 
+/** 中文：准备状态更新；若满足开局条件则立即开局。EN: Update readiness; auto-start game when all seats are ready. */
 function handleSetReady(client, payload) {
   const room = requireRoom(client);
   if (room.game) {
@@ -352,6 +372,7 @@ function handleSetReady(client, payload) {
   }
 }
 
+/** 中文：断线重连恢复座位，resumeToken 校验通过后替换旧连接。EN: Resume seat after disconnect using resumeToken, replacing old socket if needed. */
 function handleResumeRoom(client, payload) {
   ensureNoRoom(client);
 
@@ -401,6 +422,7 @@ function handleResumeRoom(client, payload) {
   }
 }
 
+/** 中文：向空座填充机器人；若满员且就绪可直接开局。EN: Add bot to an open seat; may trigger game start when lobby becomes ready. */
 function handleAddBot(client) {
   const room = requireRoom(client);
   if (room.game) {
@@ -423,6 +445,7 @@ function handleAddBot(client) {
   scheduleBotAction(room);
 }
 
+/** 中文：出牌阶段动作与声明类消息（换三张/定缺/出牌/胡/杠/响应）均委托 shared 状态机。EN: In-game action handlers delegate to shared state machine APIs. */
 function handleSubmitExchange(client, payload) {
   const room = requireGameRoom(client, 'exchange');
   const seat = client.seat;
@@ -540,6 +563,7 @@ function handleRequestRematch(client) {
   scheduleBotAction(room);
 }
 
+/** 中文：断连回收策略：未开局玩家直接离座，开局中真人改为离线托管。EN: Disconnect policy: remove pre-game seats; convert in-game humans to auto-play. */
 function handleDisconnect(socket) {
   const client = connections.get(socket);
   if (!client) {
@@ -584,6 +608,7 @@ function canStart(room) {
   return room.players.every((player) => player && player.ready) && !room.game && !room.matchFinished;
 }
 
+/** 中文：开局初始化：创建 shared game、清空响应缓存、刷新局次与房间状态。EN: Start round by creating shared game and resetting per-round room metadata. */
 function startGame(room) {
   if (room.matchFinished) {
     throw new Error('MATCH_FINISHED');
@@ -607,6 +632,7 @@ function startGame(room) {
   scheduleBotAction(room);
 }
 
+/** 中文：创建真人座位状态，并绑定到当前连接。EN: Create human seat state and bind to connection. */
 function seatClient(room, client, seat) {
   const seatState = {
     clientId: null,
@@ -624,6 +650,7 @@ function seatClient(room, client, seat) {
   bindClientToSeat(room, client, seatState);
 }
 
+/** 中文：发送 seat_assigned 并更新 idle 关房策略。EN: Bind client to seat, send seat assignment, and refresh room idle-close policy. */
 function bindClientToSeat(room, client, seatState) {
   seatState.clientId = client.id;
   client.roomId = room.id;
@@ -638,6 +665,7 @@ function bindClientToSeat(room, client, seatState) {
   refreshRoomIdleClosePolicy(room);
 }
 
+/** 中文：机器人座位结构（无 socket，仅由服务端托管行为驱动）。EN: Bot seat model (no socket, driven entirely by server autopilot). */
 function seatBot(room, seat) {
   room.players[seat] = {
     clientId: createId('bot'),
@@ -652,6 +680,7 @@ function seatBot(room, seat) {
   };
 }
 
+/** 中文：广播房间公共状态给所有在线座位。EN: Broadcast room-level public state to all connected seats. */
 function emitRoomState(room) {
   refreshRoomIdleClosePolicy(room);
 
@@ -692,6 +721,7 @@ function emitRoomState(room) {
   scheduleBotAction(room);
 }
 
+/** 中文：按座位下发带“个人视角”的 game_state（自己的手牌 + 公共牌局信息）。EN: Emit per-seat game_state payload with private hand plus shared public snapshot. */
 function emitGameState(room) {
   if (!room.game) {
     return;
@@ -732,6 +762,7 @@ function emitGameState(room) {
   scheduleBotAction(room);
 }
 
+/** 中文：在结算阶段落库本局分数变化，并累计到房间总分历史。EN: Persist round settlement deltas and accumulate room-level total scores. */
 function recordSettlementIfNeeded(room) {
   if (!room.game || room.game.phase !== 'settlement' || room.settlementRecorded) {
     return;
@@ -912,6 +943,7 @@ function scheduleBotAction(room) {
   }, delay);
 }
 
+/** 中文：机器人/托管总调度器：覆盖换三张、定缺、响应决策、出牌与结算后续局。EN: Bot/autopilot scheduler handling exchange/lack/reactions/discard/rematch flows. */
 function processBotAction(room) {
   if (!room || !rooms.has(room.id) || !room.players.some((player) => isAutoPilotPlayer(player))) {
     return;
@@ -1206,6 +1238,7 @@ function generateBotName() {
   return `${prefixes[randomInt(0, prefixes.length)]}${suffixes[randomInt(0, suffixes.length)]}${randomInt(1000, 10000)}`;
 }
 
+/** 中文：统一 WS 下行发送封装（仅在 OPEN 状态写入）。EN: Safe WS send helper that writes only when socket is OPEN. */
 function send(socket, type, payload = {}) {
   if (socket.readyState !== 1) {
     return;
@@ -1274,6 +1307,7 @@ function roomHasOnlineHumanPlayer(room) {
   return room.players.some((player) => player && !player.isBot && player.online);
 }
 
+/** 中文：无人在线时启动闲置关房计时器；有人在线则取消倒计时。EN: Start idle-close timer when no online humans; cancel when humans return. */
 function refreshRoomIdleClosePolicy(room) {
   if (roomHasOnlineHumanPlayer(room)) {
     if (room.idleCloseTimer) {
@@ -1303,6 +1337,7 @@ function refreshRoomIdleClosePolicy(room) {
   }, ROOM_IDLE_CLOSE_MS);
 }
 
+/** 中文：彻底关闭房间并清理定时器。EN: Close room and clear all related timers. */
 function closeRoom(room) {
   if (room.botActionTimer) {
     clearTimeout(room.botActionTimer);
@@ -1324,6 +1359,7 @@ function updateMatchFinishedState(room) {
   }
 }
 
+/** 中文：比赛结束后按总分生成最终排名。EN: Build final standings sorted by total score when match is finished. */
 function buildFinalStandings(room) {
   if (!room.matchFinished) {
     return [];
@@ -1344,6 +1380,7 @@ function shouldCloseRoom(room) {
 }
 
 
+/** 中文：记录最近 WS 事件环形缓冲，便于线上排障。EN: Append WS event into bounded recent log for diagnostics. */
 function logWsEvent(type, payload = {}) {
   const entry = {
     at: Date.now(),

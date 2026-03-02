@@ -3,7 +3,8 @@ let ws = null;
 let reconnectTimer = null;
 let connectTimeoutTimer = null;
 const RESUME_STORAGE_KEY = 'mj_resume_session';
-const WS_CONNECT_TIMEOUT_MS = 6000;
+const WS_CONNECT_TIMEOUT_MS = 12000;
+const WS_CONNECT_TIMEOUT_MAX_MS = 30000;
 
 registerServiceWorker();
 
@@ -36,6 +37,7 @@ const state = {
   connectStartedAt: 0,
   lastConnectDurationMs: 0,
   connectTimeouts: 0,
+  connectTimeoutStreak: 0,
   activeRooms: [],
   lastGeneratedName: '',
   resumeSession: readResumeSession(),
@@ -76,6 +78,7 @@ function connectSocket({ resetBackoff = false } = {}) {
   if (resetBackoff) {
     state.reconnectAttempts = 0;
     state.nextReconnectAt = 0;
+    state.connectTimeoutStreak = 0;
   }
 
   if (reconnectTimer) {
@@ -97,18 +100,24 @@ function connectSocket({ resetBackoff = false } = {}) {
   state.wsReadyState = ws.readyState;
   safeRender();
 
+  const connectTimeoutMs = Math.min(
+    WS_CONNECT_TIMEOUT_MAX_MS,
+    WS_CONNECT_TIMEOUT_MS + (state.connectTimeoutStreak * 4000)
+  );
+
   connectTimeoutTimer = setTimeout(() => {
     if (!ws || ws.readyState !== WebSocket.CONNECTING) {
       return;
     }
     state.connectTimeouts += 1;
-    state.lastSocketError = `连接超时(${WS_CONNECT_TIMEOUT_MS}ms)`;
+    state.connectTimeoutStreak += 1;
+    state.lastSocketError = `连接超时(${connectTimeoutMs}ms)`;
     try {
       ws.close();
     } catch {
       // ignore
     }
-  }, WS_CONNECT_TIMEOUT_MS);
+  }, connectTimeoutMs);
 
   ws.addEventListener('open', () => {
     if (connectTimeoutTimer) {
@@ -124,6 +133,7 @@ function connectSocket({ resetBackoff = false } = {}) {
     state.lastCloseReason = '';
     state.reconnectAttempts = 0;
     state.nextReconnectAt = 0;
+    state.connectTimeoutStreak = 0;
     safeRender();
 
     if (state.name) {
@@ -174,7 +184,14 @@ function scheduleReconnect() {
     return;
   }
 
-  const delay = Math.min(8000, 600 * (2 ** Math.min(state.reconnectAttempts, 4)));
+  if (navigator && navigator.onLine === false) {
+    state.nextReconnectAt = 0;
+    setNotice('设备离线，等待网络恢复后自动重连');
+    safeRender();
+    return;
+  }
+
+  const delay = Math.min(12000, 800 * (2 ** Math.min(state.reconnectAttempts, 4)));
   state.reconnectAttempts += 1;
   state.nextReconnectAt = Date.now() + delay;
   setNotice(`连接中断，${Math.round(delay / 1000)} 秒后自动重连...`);
@@ -377,7 +394,8 @@ function render() {
     `lastClose: code=${state.lastCloseCode || '-'} reason=${state.lastCloseReason || '-'}`,
     `lastError: ${state.lastSocketError || '-'}` ,
     `lastConnectDurationMs: ${state.lastConnectDurationMs || 0}`,
-    `connectTimeouts: ${state.connectTimeouts || 0}`
+    `connectTimeouts: ${state.connectTimeouts || 0}` ,
+    `connectTimeoutStreak: ${state.connectTimeoutStreak || 0}`
   ].join('\n');
 
   el.roomInfo.textContent = `房间号：${state.roomId || '-'} | 房间状态：${roomStatus} | 阶段：${phase} | 当前局次：${state.roomState?.roundNo || 0}/${maxRounds} | 我的座位：${seat ?? '-'} | 本局分数：${state.you?.score ?? '-'} | 我的总分：${mySeatState?.totalScore ?? '-'} | 再来一局确认：${rematchReady}/${occupiedSeats || 4} | 无真人在线关房：${idleCloseText}`;
@@ -1206,5 +1224,15 @@ function clearResumeSession() {
   state.resumeSession = null;
   localStorage.removeItem(RESUME_STORAGE_KEY);
 }
+
+window.addEventListener('online', () => {
+  setNotice('网络已恢复，正在重连...');
+  connectSocket({ resetBackoff: true });
+});
+
+window.addEventListener('offline', () => {
+  setNotice('设备离线，请检查 Wi‑Fi');
+  safeRender();
+});
 
 safeRender();

@@ -21,7 +21,8 @@ import {
   disconnectedNotice,
   resumeFailedNotice,
   serverErrorNotice,
-  messageHandlerErrorNotice
+  messageHandlerErrorNotice,
+  runReducerEffects
 } from '/client-core.js';
 
 const wsUrl = resolveWsUrl();
@@ -194,27 +195,13 @@ function handleMessage(event) {
     const { patch = {}, effects = [] } = reduceServerMessage(state, message);
     Object.assign(state, patch);
 
-    for (const effect of effects) {
-      if (effect.type === 'notice') {
-        setNotice(effect.message);
-      }
-
-      if (effect.type === 'persist_resume_session') {
-        persistResumeSession();
-      }
-
-      if (effect.type === 'send') {
-        send(effect.messageType, effect.payload || {});
-      }
-
-      if (effect.type === 'track_latest_draw') {
-        trackLatestDraw();
-      }
-
-      if (effect.type === 'phase_change') {
-        onPhaseChange(prevPhase, state.gameState?.phase);
-      }
-    }
+    runReducerEffects(effects, {
+      notice: (effect) => setNotice(effect.message),
+      persist_resume_session: () => persistResumeSession(),
+      send: (effect) => send(effect.messageType, effect.payload || {}),
+      track_latest_draw: () => trackLatestDraw(),
+      phase_change: () => onPhaseChange(prevPhase, state.gameState?.phase)
+    });
 
     if (type === 'hello_ack') {
       localStorage.setItem('mj_name', state.name);

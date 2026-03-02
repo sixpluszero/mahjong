@@ -12,7 +12,9 @@ import {
   persistResumeSession as persistResumeSessionToStorage,
   clearResumeSession as clearResumeSessionInStorage,
   getRoomIdFromUrlSearch,
-  buildInviteLink
+  buildInviteLink,
+  socketStateText,
+  formatTime
 } from '/client-core.js';
 
 const wsUrl = resolveWsUrl();
@@ -1219,18 +1221,9 @@ function pickRandom(arr) {
   return arr[randomInt(0, arr.length - 1)];
 }
 
-function socketStateText(stateCode) {
-  if (stateCode === 0) return 'CONNECTING';
-  if (stateCode === 1) return 'OPEN';
-  if (stateCode === 2) return 'CLOSING';
-  if (stateCode === 3) return 'CLOSED';
-  return 'UNKNOWN';
-}
 
-function formatTime(ts) {
-  if (!ts) return '-';
-  return new Date(ts).toLocaleTimeString();
-}
+
+
 
 function formatIdleCloseCountdown(ts) {
   if (!ts) {

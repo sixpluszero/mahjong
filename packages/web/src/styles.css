@@ -442,3 +442,29 @@ button.primary {
   border-radius: 10px;
   background: #fff;
 }
+
+
+.tile {
+  transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+}
+
+.tile:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(21, 101, 192, 0.15);
+}
+
+.tile:active {
+  transform: scale(0.97);
+}
+
+.tile.pending-discard {
+  border-color: #1565c0;
+  box-shadow: 0 0 0 2px rgba(21, 101, 192, 0.2);
+  background: #eef5ff;
+}
+
+.reaction-btn.primary {
+  background: #b00020;
+  color: #fff;
+  border-color: #b00020;
+}

@@ -21,6 +21,7 @@ const state = {
   lastKnownHandIds: [],
   latestDrawTileId: null,
   latestDrawAt: 0,
+  pendingDiscardTileId: null,
   rematchRequested: false,
   lastSocketError: '',
   lastCloseCode: '',
@@ -191,6 +192,7 @@ function handleMessage(event) {
       state.gameState = payload.state;
       state.you = payload.you;
       state.pendingReaction = payload.pendingReaction;
+      state.pendingDiscardTileId = null;
       trackLatestDraw();
       onPhaseChange(prevPhase, state.gameState?.phase);
     }
@@ -541,6 +543,9 @@ function renderHand() {
     if (highlightLatest && tile.id === state.latestDrawTileId) {
       btn.classList.add('new-draw');
     }
+    if (tile.id === state.pendingDiscardTileId) {
+      btn.classList.add('pending-discard');
+    }
     btn.disabled = !(canDiscardNow || phase === 'exchange');
     btn.addEventListener('click', (event) => {
       event.preventDefault();
@@ -560,6 +565,8 @@ function renderHand() {
       }
       state.latestDrawTileId = null;
       state.latestDrawAt = 0;
+      state.pendingDiscardTileId = tile.id;
+      setNotice(`已出牌：${tileLabel(tile)}，等待服务器确认`);
       send('discard', { tileId: tile.id });
     });
     frag.appendChild(btn);
@@ -797,6 +804,7 @@ function onPhaseChange(prevPhase, nextPhase) {
     state.lackSubmitted = false;
     state.latestDrawTileId = null;
     state.latestDrawAt = 0;
+    state.pendingDiscardTileId = null;
     state.lastKnownHandIds = state.you?.hand?.map((t) => t.id) || [];
     return;
   }
@@ -1024,11 +1032,13 @@ function trackLatestDraw() {
     // phase switch / sync jump, avoid wrong marker.
     state.latestDrawTileId = null;
     state.latestDrawAt = 0;
+    state.pendingDiscardTileId = null;
   }
 
   if (state.latestDrawTileId && !currentIds.includes(state.latestDrawTileId)) {
     state.latestDrawTileId = null;
     state.latestDrawAt = 0;
+    state.pendingDiscardTileId = null;
   }
 
   state.lastKnownHandIds = currentIds;

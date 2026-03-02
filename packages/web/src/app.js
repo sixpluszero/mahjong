@@ -14,7 +14,14 @@ import {
   getRoomIdFromUrlSearch,
   buildInviteLink,
   socketStateText,
-  formatTime
+  formatTime,
+  reconnectScheduledNotice,
+  offlineReconnectNotice,
+  reconnectOnlineNotice,
+  disconnectedNotice,
+  resumeFailedNotice,
+  serverErrorNotice,
+  messageHandlerErrorNotice
 } from '/client-core.js';
 
 const wsUrl = resolveWsUrl();
@@ -155,11 +162,11 @@ const realtime = createRealtimeClient({
   onReconnectScheduled(info) {
     state.reconnectAttempts = info.attempt;
     state.nextReconnectAt = info.nextReconnectAt;
-    setNotice(`连接中断，${Math.round(info.delayMs / 1000)} 秒后自动重连...`);
+    setNotice(reconnectScheduledNotice(info.delayMs));
   },
   onReconnectSkippedOffline() {
     state.nextReconnectAt = 0;
-    setNotice("设备离线，等待网络恢复后自动重连");
+    setNotice(offlineReconnectNotice());
     safeRender();
   },
   onConnectTimeout(info) {
@@ -224,14 +231,14 @@ function handleMessage(event) {
       if (state.resumePending) {
         state.resumePending = false;
         clearResumeSession();
-        setNotice(`恢复失败：${payload.code}，请重新加入房间`);
+        setNotice(resumeFailedNotice(payload.code));
       }
-      setNotice(`错误：${payload.code}`);
+      setNotice(serverErrorNotice(payload.code));
     }
 
     safeRender();
   } catch (err) {
-    setNotice(`消息处理异常: ${err?.message || String(err)}`);
+    setNotice(messageHandlerErrorNotice(err?.message || String(err))); 
     console.error('[message_handler_error]', err);
     safeRender();
   }
@@ -1131,7 +1138,7 @@ function logStatus(message) {
 function send(type, payload) {
   const ok = realtime.send(type, payload);
   if (!ok) {
-    setNotice('连接未建立');
+    setNotice(disconnectedNotice());
     safeRender();
   }
 }
@@ -1299,7 +1306,7 @@ function clearResumeSession() {
 }
 
 window.addEventListener('online', () => {
-  setNotice('网络已恢复，正在重连...');
+  setNotice(reconnectOnlineNotice());
   realtime.connect({ resetBackoff: true });
 });
 

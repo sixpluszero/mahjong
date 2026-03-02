@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "apps/*"
   ],
   "scripts": {
     "test": "npm run test -w @mahjong/shared",
@@ -11,6 +12,8 @@
     "dev:client": "npm run client -w @mahjong/server",
     "stress": "STRESS_PORT=8899 STRESS_GAMES=10 STRESS_TIMEOUT_MS=30000 npm run stress -w @mahjong/server",
     "test:e2e": "npx playwright test",
-    "test:e2e:headed": "npx playwright test --headed"
+    "test:e2e:headed": "npx playwright test --headed",
+    "dev:mobile": "npm run dev -w @mahjong/mobile",
+    "dev:mac": "npm run dev -w @mahjong/mac"
   }
 }

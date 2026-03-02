@@ -167,10 +167,10 @@ button.danger {
 }
 
 .tile {
-  min-width: 54px;
+  min-width: 44px;
   text-align: center;
   position: relative;
-  padding: 4px 6px;
+  padding: 3px 4px;
 }
 
 .tile-visual {
@@ -326,7 +326,7 @@ button:disabled {
   }
 
   .tile {
-    min-width: 52px;
+    min-width: 44px;
   }
 
   #actionBar {
@@ -403,12 +403,16 @@ button:disabled {
   }
 
   .tile {
-    min-width: 54px;
-    padding: 6px;
+    min-width: 42px;
+    padding: 4px;
   }
 
   .tile-glyph {
-    font-size: 24px;
+    font-size: 20px;
+  }
+
+  .tile-text {
+    font-size: 10px;
   }
 }
 
@@ -480,6 +484,6 @@ button.primary {
 
 #hand .tile {
   width: auto;
-  min-width: 54px;
+  min-width: 42px;
   flex: 0 0 auto;
 }

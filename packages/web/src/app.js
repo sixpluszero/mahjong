@@ -5,7 +5,13 @@
  * Handles WebSocket lifecycle, server message synchronization, local UI state, and render/action dispatch.
  */
 
-import { createRealtimeClient, reduceServerMessage } from '/client-core.js';
+import {
+  createRealtimeClient,
+  reduceServerMessage,
+  readResumeSession as readResumeSessionFromStorage,
+  persistResumeSession as persistResumeSessionToStorage,
+  clearResumeSession as clearResumeSessionInStorage
+} from '/client-core.js';
 
 const wsUrl = resolveWsUrl();
 /** 中文：断线重连用的会话快照存储键。EN: LocalStorage key used for session resume after reconnect. */
@@ -48,7 +54,7 @@ const state = {
   connectTimeoutStreak: 0,
   activeRooms: [],
   lastGeneratedName: '',
-  resumeSession: readResumeSession(),
+  resumeSession: readResumeSessionFromStorage(localStorage, RESUME_STORAGE_KEY),
   resumePending: false
 };
 
@@ -1285,34 +1291,18 @@ function resolveWsUrl() {
 
 /** 中文：读取并校验本地可恢复会话快照。EN: Read and validate resumable session snapshot from local storage. */
 function readResumeSession() {
-  try {
-    const raw = localStorage.getItem(RESUME_STORAGE_KEY);
-    if (!raw) {
-      return null;
-    }
-    const parsed = JSON.parse(raw);
-    if (!parsed?.roomId || parsed?.seat === undefined || !parsed?.resumeToken) {
-      return null;
-    }
-    return parsed;
-  } catch {
-    return null;
-  }
+  return readResumeSessionFromStorage(localStorage, RESUME_STORAGE_KEY);
 }
 
 /** 中文：持久化当前恢复会话（或清除无效快照）。EN: Persist current resume session (or remove snapshot when empty). */
 function persistResumeSession() {
-  if (!state.resumeSession) {
-    localStorage.removeItem(RESUME_STORAGE_KEY);
-    return;
-  }
-  localStorage.setItem(RESUME_STORAGE_KEY, JSON.stringify(state.resumeSession));
+  persistResumeSessionToStorage(localStorage, RESUME_STORAGE_KEY, state.resumeSession);
 }
 
 /** 中文：清空恢复会话，通常用于恢复失败后的回退。EN: Clear stored resume session, typically after resume failure fallback. */
 function clearResumeSession() {
   state.resumeSession = null;
-  localStorage.removeItem(RESUME_STORAGE_KEY);
+  clearResumeSessionInStorage(localStorage, RESUME_STORAGE_KEY);
 }
 
 window.addEventListener('online', () => {

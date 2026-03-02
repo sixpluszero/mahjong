@@ -42,7 +42,8 @@ const STATIC_FILES = new Map([
   ['/manifest.webmanifest', { file: 'manifest.webmanifest', type: 'application/manifest+json; charset=utf-8' }],
   ['/client-core.js', { file: 'web-entry.js', root: CLIENT_CORE_ROOT, type: 'application/javascript; charset=utf-8' }],
   ['/browser-runtime.js', { file: 'browser-runtime.js', root: CLIENT_CORE_ROOT, type: 'application/javascript; charset=utf-8' }],
-  ['/protocol-reducer.js', { file: 'protocol-reducer.js', root: CLIENT_CORE_ROOT, type: 'application/javascript; charset=utf-8' }]
+  ['/protocol-reducer.js', { file: 'protocol-reducer.js', root: CLIENT_CORE_ROOT, type: 'application/javascript; charset=utf-8' }],
+  ['/resume-session.js', { file: 'resume-session.js', root: CLIENT_CORE_ROOT, type: 'application/javascript; charset=utf-8' }]
 ]);
 /** 中文：运行时内存态：房间集合与 socket->client 映射。EN: In-memory runtime stores: rooms and socket-to-client mapping. */
 const rooms = new Map();

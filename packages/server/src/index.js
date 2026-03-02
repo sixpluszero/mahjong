@@ -32,13 +32,15 @@ const HOST = process.env.HOST ?? '0.0.0.0';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const WEB_ROOT = path.resolve(__dirname, '../../web/src');
+const CLIENT_CORE_ROOT = path.resolve(__dirname, '../../client-core/src');
 /** 中文：白名单静态资源映射，避免路径穿越并保持返回类型确定。EN: Whitelisted static asset map for safe path resolution and deterministic content types. */
 const STATIC_FILES = new Map([
   ['/', { file: 'index.html', type: 'text/html; charset=utf-8' }],
   ['/app.js', { file: 'app.js', type: 'application/javascript; charset=utf-8' }],
   ['/styles.css', { file: 'styles.css', type: 'text/css; charset=utf-8' }],
   ['/sw.js', { file: 'sw.js', type: 'application/javascript; charset=utf-8' }],
-  ['/manifest.webmanifest', { file: 'manifest.webmanifest', type: 'application/manifest+json; charset=utf-8' }]
+  ['/manifest.webmanifest', { file: 'manifest.webmanifest', type: 'application/manifest+json; charset=utf-8' }],
+  ['/client-core.js', { file: 'browser-runtime.js', root: CLIENT_CORE_ROOT, type: 'application/javascript; charset=utf-8' }]
 ]);
 /** 中文：运行时内存态：房间集合与 socket->client 映射。EN: In-memory runtime stores: rooms and socket-to-client mapping. */
 const rooms = new Map();
@@ -98,7 +100,8 @@ const httpServer = createServer(async (req, res) => {
   }
 
   try {
-    const content = await readFile(path.join(WEB_ROOT, staticEntry.file));
+    const rootDir = staticEntry.root || WEB_ROOT;
+    const content = await readFile(path.join(rootDir, staticEntry.file));
     res.writeHead(200, {
       'content-type': staticEntry.type,
       'cache-control': 'no-store'

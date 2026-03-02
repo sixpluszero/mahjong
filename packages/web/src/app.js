@@ -5,10 +5,9 @@
  * Handles WebSocket lifecycle, server message synchronization, local UI state, and render/action dispatch.
  */
 
+import { createRealtimeClient } from '/client-core.js';
+
 const wsUrl = resolveWsUrl();
-let ws = null;
-let reconnectTimer = null;
-let connectTimeoutTimer = null;
 /** 中文：断线重连用的会话快照存储键。EN: LocalStorage key used for session resume after reconnect. */
 const RESUME_STORAGE_KEY = 'mj_resume_session';
 const WS_CONNECT_TIMEOUT_MS = 12000;
@@ -87,144 +86,81 @@ const el = {
 el.nameInput.value = state.name;
 
 /**
- * 中文：建立 WebSocket 连接并注册事件监听。
- * 包含连接超时保护、自动恢复 hello/resume/list_rooms 流程，以及退避重连状态重置。
- * EN: Open WebSocket connection and wire listeners.
- * Includes connection-timeout protection, automatic hello/resume/list_rooms bootstrap, and backoff reset support.
+ * 中文：跨端 realtime 运行时实例（来自 client-core）。
+ * 负责底层 WS 生命周期、超时控制与重连调度；UI 通过回调同步状态。
+ * EN: Realtime runtime instance from client-core.
+ * Handles low-level WS lifecycle, timeout guard, and reconnect scheduling; UI state syncs via callbacks.
  */
-function connectSocket({ resetBackoff = false } = {}) {
-  if (resetBackoff) {
-    state.reconnectAttempts = 0;
-    state.nextReconnectAt = 0;
-    state.connectTimeoutStreak = 0;
-  }
-
-  if (reconnectTimer) {
-    clearTimeout(reconnectTimer);
-    reconnectTimer = null;
-  }
-
-  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
-    return;
-  }
-
-  state.connectStartedAt = Date.now();
-  if (connectTimeoutTimer) {
-    clearTimeout(connectTimeoutTimer);
-    connectTimeoutTimer = null;
-  }
-
-  ws = new WebSocket(wsUrl);
-  state.wsReadyState = ws.readyState;
-  safeRender();
-
-  const connectTimeoutMs = Math.min(
-    WS_CONNECT_TIMEOUT_MAX_MS,
-    WS_CONNECT_TIMEOUT_MS + (state.connectTimeoutStreak * 4000)
-  );
-
-  connectTimeoutTimer = setTimeout(() => {
-    if (!ws || ws.readyState !== WebSocket.CONNECTING) {
-      return;
-    }
-    state.connectTimeouts += 1;
-    state.connectTimeoutStreak += 1;
-    state.lastSocketError = `连接超时(${connectTimeoutMs}ms)`;
-    try {
-      ws.close();
-    } catch {
-      // ignore
-    }
-  }, connectTimeoutMs);
-
-  ws.addEventListener('open', () => {
-    if (connectTimeoutTimer) {
-      clearTimeout(connectTimeoutTimer);
-      connectTimeoutTimer = null;
-    }
+const realtime = createRealtimeClient({
+  wsUrl,
+  connectTimeoutMs: WS_CONNECT_TIMEOUT_MS,
+  connectTimeoutMaxMs: WS_CONNECT_TIMEOUT_MAX_MS,
+  isOnline: () => !(navigator && navigator.onLine === false),
+  onOpen(info) {
     state.connected = true;
-    state.wsReadyState = ws.readyState;
+    state.wsReadyState = info.readyState;
     state.lastOpenAt = Date.now();
-    state.lastConnectDurationMs = state.connectStartedAt ? (Date.now() - state.connectStartedAt) : 0;
-    state.lastSocketError = '';
-    state.lastCloseCode = '';
-    state.lastCloseReason = '';
+    state.lastConnectDurationMs = info.connectDurationMs || 0;
+    state.lastSocketError = "";
+    state.lastCloseCode = "";
+    state.lastCloseReason = "";
     state.reconnectAttempts = 0;
     state.nextReconnectAt = 0;
     state.connectTimeoutStreak = 0;
     safeRender();
 
     if (state.name) {
-      send('hello', { name: state.name });
+      send("hello", { name: state.name });
     }
 
     if (state.resumeSession) {
       state.resumePending = true;
-      send('resume_room', {
+      send("resume_room", {
         roomId: state.resumeSession.roomId,
         seat: state.resumeSession.seat,
         resumeToken: state.resumeSession.resumeToken
       });
     }
 
-    send('list_rooms', {});
+    send("list_rooms", {});
 
-    const qsRoomId = new URLSearchParams(location.search).get('room');
+    const qsRoomId = new URLSearchParams(location.search).get("room");
     if (qsRoomId && !state.roomId) {
-      send('join_room', { roomId: String(qsRoomId).trim().toUpperCase() });
+      send("join_room", { roomId: String(qsRoomId).trim().toUpperCase() });
     }
-  });
-
-  ws.addEventListener('close', (event) => {
-    if (connectTimeoutTimer) {
-      clearTimeout(connectTimeoutTimer);
-      connectTimeoutTimer = null;
-    }
+  },
+  onClose(info) {
     state.connected = false;
-    state.wsReadyState = ws.readyState;
-    state.lastCloseCode = String(event.code ?? '');
-    state.lastCloseReason = event.reason || '';
+    state.wsReadyState = info.readyState;
+    state.lastCloseCode = String(info.code ?? "");
+    state.lastCloseReason = info.reason || "";
     state.resumePending = false;
-    scheduleReconnect();
     safeRender();
-  });
-
-  ws.addEventListener('error', (event) => {
-    if (connectTimeoutTimer) {
-      clearTimeout(connectTimeoutTimer);
-      connectTimeoutTimer = null;
-    }
-    state.wsReadyState = ws.readyState;
-    state.lastSocketError = event?.message || 'WebSocket error';
+  },
+  onError(info) {
+    state.wsReadyState = info.readyState;
+    state.lastSocketError = info.message || "WebSocket error";
     safeRender();
-  });
-
-  ws.addEventListener('message', (event) => handleMessage(event));
-}
-
-/** 中文：指数退避重连调度（离线时仅提示，不主动拨号）。EN: Exponential-backoff reconnect scheduler with offline-aware pause. */
-function scheduleReconnect() {
-  if (reconnectTimer) {
-    return;
-  }
-
-  if (navigator && navigator.onLine === false) {
+  },
+  onReconnectScheduled(info) {
+    state.reconnectAttempts = info.attempt;
+    state.nextReconnectAt = info.nextReconnectAt;
+    setNotice(`连接中断，${Math.round(info.delayMs / 1000)} 秒后自动重连...`);
+  },
+  onReconnectSkippedOffline() {
     state.nextReconnectAt = 0;
-    setNotice('设备离线，等待网络恢复后自动重连');
+    setNotice("设备离线，等待网络恢复后自动重连");
     safeRender();
-    return;
+  },
+  onConnectTimeout(info) {
+    state.connectTimeouts += 1;
+    state.connectTimeoutStreak = info.streak;
+    state.lastSocketError = `连接超时(${info.timeoutMs}ms)`;
+  },
+  onMessage(event) {
+    handleMessage(event);
   }
-
-  const delay = Math.min(12000, 800 * (2 ** Math.min(state.reconnectAttempts, 4)));
-  state.reconnectAttempts += 1;
-  state.nextReconnectAt = Date.now() + delay;
-  setNotice(`连接中断，${Math.round(delay / 1000)} 秒后自动重连...`);
-  reconnectTimer = setTimeout(() => {
-    reconnectTimer = null;
-    connectSocket();
-  }, delay);
-}
-
+});
 /**
  * 中文：统一处理服务端消息并同步本地状态。
  * 关键副作用：记录身份、更新房间/牌局视图、恢复会话状态与错误提示。
@@ -307,7 +243,7 @@ function handleMessage(event) {
   }
 }
 
-connectSocket({ resetBackoff: true });
+realtime.connect({ resetBackoff: true });
 
 window.addEventListener('error', (event) => {
   setNotice(`前端异常: ${event.message}`);
@@ -391,14 +327,8 @@ el.refreshRoomsBtn.addEventListener('click', () => {
 });
 
 el.reconnectBtn.addEventListener('click', () => {
-  if (ws) {
-    try {
-      ws.close();
-    } catch {
-      // ignore
-    }
-  }
-  connectSocket({ resetBackoff: true });
+  realtime.close();
+  realtime.connect({ resetBackoff: true });
 });
 
 setInterval(() => {
@@ -406,7 +336,7 @@ setInterval(() => {
 }, 1000);
 
 setInterval(() => {
-  if (ws && ws.readyState === 1) {
+  if (realtime.isOpen()) {
     send('list_rooms', {});
 
     const qsRoomId = new URLSearchParams(location.search).get('room');
@@ -1207,13 +1137,11 @@ function logStatus(message) {
 
 /** 中文：统一上行消息发送；连接未就绪时直接提示并保持 UI 一致。EN: Unified outbound message sender with not-connected guard. */
 function send(type, payload) {
-  if (!ws || ws.readyState !== 1) {
+  const ok = realtime.send(type, payload);
+  if (!ok) {
     setNotice('连接未建立');
     safeRender();
-    return;
   }
-
-  ws.send(JSON.stringify({ type, payload }));
 }
 
 function setNotice(message) {
@@ -1405,7 +1333,7 @@ function clearResumeSession() {
 
 window.addEventListener('online', () => {
   setNotice('网络已恢复，正在重连...');
-  connectSocket({ resetBackoff: true });
+  realtime.connect({ resetBackoff: true });
 });
 
 window.addEventListener('offline', () => {

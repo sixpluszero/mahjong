@@ -320,6 +320,11 @@ button:disabled {
     font-size: 15px;
   }
 
+  .row input,
+  .row button {
+    width: 100%;
+  }
+
   .tile {
     min-width: 52px;
   }
@@ -374,9 +379,13 @@ button:disabled {
 
   input,
   button {
-    width: 100%;
     min-height: 42px;
     font-size: 15px;
+  }
+
+  .row input,
+  .row button {
+    width: 100%;
   }
 
   #activeRooms,
@@ -467,4 +476,10 @@ button.primary {
   background: #b00020;
   color: #fff;
   border-color: #b00020;
+}
+
+#hand .tile {
+  width: auto;
+  min-width: 54px;
+  flex: 0 0 auto;
 }

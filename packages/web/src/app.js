@@ -795,10 +795,56 @@ function renderActionBar() {
 function renderEvents() {
   const events = state.gameState?.settlementEvents || [];
   const tail = events.slice(-10);
-  el.events.textContent = tail.length === 0
-    ? '暂无'
-    : tail.map((event, idx) => `${idx + 1}. ${formatSettlementEvent(event)}`).join('\n');
+
+  const latestRound = (state.roomState?.roundHistory || []).slice(-1)[0] || null;
+
+  if (tail.length === 0 && !latestRound) {
+
+    const empty = document.createElement('div');
+    empty.className = 'event-card empty';
+    empty.textContent = '暂无';
+    el.events.replaceChildren(empty);
+    return;
+  }
+
+  const frag = document.createDocumentFragment();
+
+  if (latestRound) {
+    const summary = document.createElement('div');
+    summary.className = 'event-card round-summary';
+    const title = document.createElement('div');
+    title.className = 'event-title';
+    title.textContent = `本局汇总（第${latestRound.roundNo}局）`;
+    const content = document.createElement('div');
+    content.className = 'event-content';
+    content.textContent = (latestRound.scoreChanges || [])
+      .map((x) => `座位${x.seat} ${x.name} ${x.delta >= 0 ? '+' : ''}${x.delta}`)
+      .join(' | ');
+    summary.appendChild(title);
+    summary.appendChild(content);
+    frag.appendChild(summary);
+  }
+
+  for (const event of tail) {
+    const card = document.createElement('div');
+    card.className = `event-card ${event.type === 'hu' ? 'hu' : event.type === 'gang' ? 'gang' : ''}`.trim();
+
+    const title = document.createElement('div');
+    title.className = 'event-title';
+    title.textContent = event.type === 'hu' ? '胡牌结算' : event.type === 'gang' ? '杠牌结算' : '结算事件';
+    card.appendChild(title);
+
+    const content = document.createElement('div');
+    content.className = 'event-content';
+    content.textContent = formatSettlementEvent(event);
+    card.appendChild(content);
+
+    frag.appendChild(card);
+  }
+
+  el.events.replaceChildren(frag);
 }
+
 
 function findAnGangCandidates(hand) {
   const map = new Map();

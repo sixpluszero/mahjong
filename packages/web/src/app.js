@@ -10,7 +10,9 @@ import {
   reduceServerMessage,
   readResumeSession as readResumeSessionFromStorage,
   persistResumeSession as persistResumeSessionToStorage,
-  clearResumeSession as clearResumeSessionInStorage
+  clearResumeSession as clearResumeSessionInStorage,
+  getRoomIdFromUrlSearch,
+  buildInviteLink
 } from '/client-core.js';
 
 const wsUrl = resolveWsUrl();
@@ -130,9 +132,9 @@ const realtime = createRealtimeClient({
 
     send("list_rooms", {});
 
-    const qsRoomId = new URLSearchParams(location.search).get("room");
+    const qsRoomId = getRoomIdFromUrlSearch(location.search);
     if (qsRoomId && !state.roomId) {
-      send("join_room", { roomId: String(qsRoomId).trim().toUpperCase() });
+      send("join_room", { roomId: qsRoomId });
     }
   },
   onClose(info) {
@@ -210,9 +212,9 @@ function handleMessage(event) {
     }
 
     if (type === 'room_state') {
-      const qsRoomId = new URLSearchParams(location.search).get('room');
+      const qsRoomId = getRoomIdFromUrlSearch(location.search);
       if (qsRoomId && !state.roomId) {
-        send('join_room', { roomId: String(qsRoomId).trim().toUpperCase() });
+        send('join_room', { roomId: qsRoomId });
       }
     }
 
@@ -308,7 +310,7 @@ el.copyInviteBtn.addEventListener('click', async () => {
     safeRender();
     return;
   }
-  const invite = `${location.origin}?room=${encodeURIComponent(state.roomId)}`;
+  const invite = buildInviteLink(location.origin, state.roomId);
   await copyText(invite, '邀请链接已复制');
 });
 
@@ -329,9 +331,9 @@ setInterval(() => {
   if (realtime.isOpen()) {
     send('list_rooms', {});
 
-    const qsRoomId = new URLSearchParams(location.search).get('room');
+    const qsRoomId = getRoomIdFromUrlSearch(location.search);
     if (qsRoomId && !state.roomId) {
-      send('join_room', { roomId: String(qsRoomId).trim().toUpperCase() });
+      send('join_room', { roomId: qsRoomId });
     }
   }
 }, 3000);
@@ -363,9 +365,7 @@ function render() {
   const mySeatState = (state.roomState?.players || []).find((p) => p.occupied && p.seat === seat);
   const maxRounds = state.roomState?.maxRounds || 8;
   const idleCloseText = formatIdleCloseCountdown(state.roomState?.idleCloseDeadlineAt);
-  const inviteLink = state.roomId
-    ? `${location.origin}?room=${encodeURIComponent(state.roomId)}`
-    : '';
+  const inviteLink = buildInviteLink(location.origin, state.roomId);
 
   const base = state.connected
     ? `已连接 ${wsUrl} | clientId=${state.clientId || '-'} | 昵称=${state.name || '-'}`

@@ -487,3 +487,15 @@ button.primary {
   min-width: 42px;
   flex: 0 0 auto;
 }
+
+.pending-reaction-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid #ffd59a;
+  border-radius: 8px;
+  background: #fff7e8;
+  color: #7a4c00;
+  font-size: 13px;
+}

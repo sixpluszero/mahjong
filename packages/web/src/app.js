@@ -743,6 +743,14 @@ function renderActionBar() {
   }
 
   if (state.pendingReaction) {
+    const pendingInfo = document.createElement('div');
+    pendingInfo.className = 'pending-reaction-info';
+    const fromSeat = document.createElement('span');
+    fromSeat.textContent = `座位${state.pendingReaction.fromSeat} 打出：`;
+    pendingInfo.appendChild(fromSeat);
+    pendingInfo.appendChild(createTileVisual(state.pendingReaction.tile, { compact: false }));
+    el.actionBar.appendChild(pendingInfo);
+
     for (const action of ['hu', 'gang', 'peng', 'pass']) {
       if (action === 'hu' && !state.pendingReaction.canHu) continue;
       if (action === 'gang' && !state.pendingReaction.canGang) continue;

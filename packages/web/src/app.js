@@ -1192,6 +1192,14 @@ function randomInt(min, max) {
   return min + Math.floor(Math.random() * (max - min + 1));
 }
 
+
+function isIOSSafari() {
+  const ua = navigator.userAgent || '';
+  const isIOS = /iP(hone|ad|od)/i.test(ua);
+  const isSafari = /Safari/i.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS/i.test(ua);
+  return isIOS && isSafari;
+}
+
 function resolveWsUrl() {
   const qs = new URLSearchParams(location.search);
   const qsWs = qs.get('ws');

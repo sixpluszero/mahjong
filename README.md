@@ -31,3 +31,15 @@ Quick start:
   - iPad/iPhone (Safari): Share -> Add to Home Screen.
   - Android (Chrome): menu -> Install app / Add to Home screen.
 - Launch from home screen and verify it opens in standalone mode and can reconnect to room normally.
+
+
+## Quick smoke checklist
+- Open desktop browser and verify WS connects within 3s.
+- Create room -> add bots -> all ready -> game starts.
+- Complete at least 1 round to settlement.
+- Click rematch once and verify next round starts.
+- Open on mobile LAN URL and verify connect + one discard action.
+
+## Browser note (iOS)
+- iOS Safari may show intermittent LAN WebSocket instability in some networks.
+- If connection is unstable, use Chrome on iOS as a workaround.

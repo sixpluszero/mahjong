@@ -19,3 +19,15 @@ Quick start:
 - Optional bot debug:
   - `npm run dev:client`
   - `ROOM_ID=<room_id_from_logs> npm run dev:client`
+
+## Mobile LAN + PWA test
+- Start server: `npm run dev:server`
+- In server logs, find LAN URL (example: `http://192.168.1.20:8787`).
+- Ensure iPad/phone is on the same Wi-Fi, then open that LAN URL in browser.
+- Basic checks:
+  - Room creation/join/ready/actions all work from touch UI.
+  - Refresh page once to confirm app shell assets still load.
+- Install as PWA:
+  - iPad/iPhone (Safari): Share -> Add to Home Screen.
+  - Android (Chrome): menu -> Install app / Add to Home screen.
+- Launch from home screen and verify it opens in standalone mode and can reconnect to room normally.

@@ -1,0 +1,11 @@
+{
+  "name": "四川麻将",
+  "short_name": "麻将",
+  "description": "四川麻将局域网调试客户端",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f6f7f9",
+  "theme_color": "#1565c0",
+  "lang": "zh-CN"
+}

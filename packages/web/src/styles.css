@@ -21,11 +21,22 @@ body {
 }
 
 .page {
-  max-width: 1100px;
+  max-width: 1240px;
   margin: 24px auto;
-  padding: 0 16px;
+  padding: 0 16px 84px;
   display: grid;
   gap: 16px;
+}
+
+@media (min-width: 1025px) {
+  .page {
+    grid-template-columns: 360px minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .game-panel {
+    min-height: 72vh;
+  }
 }
 
 h1, h2, h3 {
@@ -229,6 +240,10 @@ button:disabled {
   flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 10px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #f8fbff;
 }
 
 .reaction-btn {
@@ -287,4 +302,116 @@ button:disabled {
 .discard.claimed {
   border-color: #c98c00;
   background: #fff8e6;
+}
+
+@media (max-width: 1024px) {
+  .page {
+    margin: 12px auto;
+    padding: 0 12px 112px;
+    gap: 10px;
+  }
+
+  .panel {
+    padding: 12px;
+  }
+
+  .row {
+    gap: 6px;
+  }
+
+  input,
+  button {
+    min-height: 42px;
+    font-size: 15px;
+  }
+
+  .tile {
+    min-width: 52px;
+  }
+
+  #actionBar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    margin: 0;
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    border-radius: 12px 12px 0 0;
+    background: rgba(248, 251, 255, 0.98);
+    box-shadow: 0 -8px 24px rgba(24, 45, 72, 0.15);
+    backdrop-filter: blur(6px);
+  }
+
+  #actionBar button {
+    flex: 1 1 120px;
+    min-height: 44px;
+    font-size: 15px;
+    font-weight: 600;
+  }
+}
+
+@media (max-width: 768px) {
+  body {
+    font-size: 15px;
+  }
+
+  h1 {
+    font-size: 24px;
+    margin-bottom: 8px;
+  }
+
+  .page {
+    margin: 8px auto;
+    padding: 0 10px 124px;
+    gap: 10px;
+  }
+
+  .panel {
+    border-radius: 8px;
+    padding: 10px;
+  }
+
+  .row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: stretch;
+  }
+
+  .row label {
+    grid-column: 1 / -1;
+  }
+
+  input,
+  button {
+    width: 100%;
+    min-height: 42px;
+    font-size: 15px;
+  }
+
+  #activeRooms,
+  #hand,
+  #discards,
+  #actionBar {
+    gap: 6px;
+  }
+
+  #hand {
+    padding: 8px;
+    border: 1px dashed var(--line);
+    border-radius: 10px;
+    background: #fcfdff;
+  }
+
+  .tile {
+    min-width: 54px;
+    padding: 6px;
+  }
+
+  .tile-glyph {
+    font-size: 24px;
+  }
 }

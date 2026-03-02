@@ -3,6 +3,8 @@ let ws = null;
 let reconnectTimer = null;
 const RESUME_STORAGE_KEY = 'mj_resume_session';
 
+registerServiceWorker();
+
 const state = {
   clientId: null,
   name: localStorage.getItem('mj_name') || '',
@@ -298,6 +300,18 @@ setInterval(() => {
     send('list_rooms', {});
   }
 }, 3000);
+
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) {
+    return;
+  }
+
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((error) => {
+      console.error('[service_worker_register_failed]', error);
+    });
+  });
+}
 
 function render() {
   const seat = state.you?.seat;

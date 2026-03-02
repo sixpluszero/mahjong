@@ -27,7 +27,9 @@ const WEB_ROOT = path.resolve(__dirname, '../../web/src');
 const STATIC_FILES = new Map([
   ['/', { file: 'index.html', type: 'text/html; charset=utf-8' }],
   ['/app.js', { file: 'app.js', type: 'application/javascript; charset=utf-8' }],
-  ['/styles.css', { file: 'styles.css', type: 'text/css; charset=utf-8' }]
+  ['/styles.css', { file: 'styles.css', type: 'text/css; charset=utf-8' }],
+  ['/sw.js', { file: 'sw.js', type: 'application/javascript; charset=utf-8' }],
+  ['/manifest.webmanifest', { file: 'manifest.webmanifest', type: 'application/manifest+json; charset=utf-8' }]
 ]);
 const rooms = new Map();
 const connections = new Map();

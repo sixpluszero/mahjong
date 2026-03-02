@@ -1,53 +1,27 @@
-/**
- * EN: Initial macOS app UI scaffold (React Native macOS target).
- * 中文：macOS 客户端初始 UI 脚手架（react-native-macos 目标）。
- */
-
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { SafeAreaView, Text, View, StyleSheet, TextInput, Pressable } from 'react-native';
+import { createLobbyRuntime, type LobbyViewState } from './lobby-runtime';
 
-type LobbyState = {
-  name: string;
-  roomId: string;
-  status: string;
-  players: string[];
-};
-
-function useLobbyPreviewState() {
-  const [state, setState] = useState<LobbyState>({
+export default function App(): JSX.Element {
+  const [mode, setMode] = useState<'preview' | 'live'>('preview');
+  const [wsUrl, setWsUrl] = useState('ws://localhost:8787');
+  const [state, setState] = useState<LobbyViewState>({
     name: '',
     roomId: '',
     status: 'Not connected yet',
-    players: []
+    players: [],
+    connected: false
   });
 
-  const actions = useMemo(
-    () => ({
-      setName: (name: string) => setState((s) => ({ ...s, name })),
-      setRoomId: (roomId: string) => setState((s) => ({ ...s, roomId: roomId.toUpperCase() })),
-      hello: () => setState((s) => ({ ...s, status: `Hello ${s.name || 'Player'} (preview mode)` })),
-      createRoom: () =>
-        setState((s) => ({
-          ...s,
-          roomId: s.roomId || 'ABC123',
-          status: 'Room created (preview)',
-          players: s.name ? [s.name] : []
-        })),
-      joinRoom: () =>
-        setState((s) => ({
-          ...s,
-          status: `Join room ${s.roomId || '-'} (preview)`,
-          players: s.name && !s.players.includes(s.name) ? [...s.players, s.name] : s.players
-        }))
-    }),
-    []
+  const runtime = useMemo(
+    () => createLobbyRuntime({ mode, wsUrl, onState: (patch) => setState((s) => ({ ...s, ...patch })) }),
+    [mode, wsUrl]
   );
 
-  return { state, actions };
-}
-
-export default function App(): JSX.Element {
-  const { state, actions } = useLobbyPreviewState();
+  useEffect(() => {
+    runtime.connect();
+    return () => runtime.disconnect();
+  }, [runtime]);
 
   return (
     <SafeAreaView style={styles.page}>
@@ -56,10 +30,29 @@ export default function App(): JSX.Element {
         <Text style={styles.subtitle}>四川麻将 Mac 端（大厅预览）</Text>
 
         <View style={styles.formRow}>
+          <Text style={styles.label}>Mode / 模式</Text>
+          <View style={styles.actionsRow}>
+            <ActionButton text="Preview" onPress={() => setMode('preview')} active={mode === 'preview'} />
+            <ActionButton text="Live" onPress={() => setMode('live')} active={mode === 'live'} />
+          </View>
+        </View>
+
+        <View style={styles.formRow}>
+          <Text style={styles.label}>WS URL</Text>
+          <TextInput
+            value={wsUrl}
+            onChangeText={setWsUrl}
+            placeholder="ws://localhost:8787"
+            placeholderTextColor="#64748b"
+            style={styles.input}
+          />
+        </View>
+
+        <View style={styles.formRow}>
           <Text style={styles.label}>Name / 昵称</Text>
           <TextInput
             value={state.name}
-            onChangeText={actions.setName}
+            onChangeText={(name) => setState((s) => ({ ...s, name }))}
             placeholder="PlayerA"
             placeholderTextColor="#64748b"
             style={styles.input}
@@ -70,7 +63,7 @@ export default function App(): JSX.Element {
           <Text style={styles.label}>Room / 房间号</Text>
           <TextInput
             value={state.roomId}
-            onChangeText={actions.setRoomId}
+            onChangeText={(roomId) => setState((s) => ({ ...s, roomId: roomId.toUpperCase() }))}
             placeholder="ABC123"
             placeholderTextColor="#64748b"
             style={styles.input}
@@ -78,25 +71,22 @@ export default function App(): JSX.Element {
         </View>
 
         <View style={styles.actionsRow}>
-          <ActionButton text="Hello" onPress={actions.hello} />
-          <ActionButton text="Create" onPress={actions.createRoom} />
-          <ActionButton text="Join" onPress={actions.joinRoom} />
+          <ActionButton text="Hello" onPress={() => runtime.hello(state.name)} />
+          <ActionButton text="Create" onPress={() => runtime.createRoom()} />
+          <ActionButton text="Join" onPress={() => runtime.joinRoom(state.roomId)} />
         </View>
 
+        <Text style={styles.meta}>Connected: {state.connected ? 'Yes' : 'No'}</Text>
         <Text style={styles.meta}>Status: {state.status}</Text>
         <Text style={styles.meta}>Players: {state.players.join(', ') || '-'}</Text>
-
-        <Text style={styles.note}>
-          Next step: replace preview state with @mahjong/client-core realtime wiring.
-        </Text>
       </View>
     </SafeAreaView>
   );
 }
 
-function ActionButton({ text, onPress }: { text: string; onPress: () => void }) {
+function ActionButton({ text, onPress, active = true }: { text: string; onPress: () => void; active?: boolean }) {
   return (
-    <Pressable style={styles.button} onPress={onPress}>
+    <Pressable style={[styles.button, !active && styles.buttonInactive]} onPress={onPress}>
       <Text style={styles.buttonText}>{text}</Text>
     </Pressable>
   );
@@ -152,6 +142,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10
   },
+  buttonInactive: {
+    backgroundColor: '#334155'
+  },
   buttonText: {
     color: '#fff',
     fontWeight: '600'
@@ -159,10 +152,5 @@ const styles = StyleSheet.create({
   meta: {
     marginTop: 12,
     color: '#cbd5e1'
-  },
-  note: {
-    marginTop: 14,
-    color: '#94a3b8',
-    fontSize: 13
   }
 });

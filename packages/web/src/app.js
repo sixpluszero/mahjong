@@ -53,6 +53,8 @@ const el = {
   joinRoomBtn: document.querySelector('#joinRoomBtn'),
   addBotBtn: document.querySelector('#addBotBtn'),
   readyBtn: document.querySelector('#readyBtn'),
+  copyRoomIdBtn: document.querySelector('#copyRoomIdBtn'),
+  copyInviteBtn: document.querySelector('#copyInviteBtn'),
   refreshRoomsBtn: document.querySelector('#refreshRoomsBtn'),
   reconnectBtn: document.querySelector('#reconnectBtn'),
   status: document.querySelector('#status'),
@@ -150,6 +152,11 @@ function connectSocket({ resetBackoff = false } = {}) {
     }
 
     send('list_rooms', {});
+
+    const qsRoomId = new URLSearchParams(location.search).get('room');
+    if (qsRoomId && !state.roomId) {
+      send('join_room', { roomId: String(qsRoomId).trim().toUpperCase() });
+    }
   });
 
   ws.addEventListener('close', (event) => {
@@ -239,6 +246,11 @@ function handleMessage(event) {
         state.rematchRequested = false;
       }
       send('list_rooms', {});
+
+    const qsRoomId = new URLSearchParams(location.search).get('room');
+    if (qsRoomId && !state.roomId) {
+      send('join_room', { roomId: String(qsRoomId).trim().toUpperCase() });
+    }
     }
 
     if (type === 'game_state') {
@@ -332,6 +344,25 @@ el.readyBtn.addEventListener('click', () => {
   send('set_ready', { ready: true });
 });
 
+el.copyRoomIdBtn.addEventListener('click', async () => {
+  if (!state.roomId) {
+    setNotice('当前没有房间号可复制');
+    safeRender();
+    return;
+  }
+  await copyText(state.roomId, '房间号已复制');
+});
+
+el.copyInviteBtn.addEventListener('click', async () => {
+  if (!state.roomId) {
+    setNotice('请先创建或加入房间');
+    safeRender();
+    return;
+  }
+  const invite = `${location.origin}?room=${encodeURIComponent(state.roomId)}`;
+  await copyText(invite, '邀请链接已复制');
+});
+
 el.refreshRoomsBtn.addEventListener('click', () => {
   send('list_rooms', {});
 });
@@ -354,6 +385,11 @@ setInterval(() => {
 setInterval(() => {
   if (ws && ws.readyState === 1) {
     send('list_rooms', {});
+
+    const qsRoomId = new URLSearchParams(location.search).get('room');
+    if (qsRoomId && !state.roomId) {
+      send('join_room', { roomId: String(qsRoomId).trim().toUpperCase() });
+    }
   }
 }, 3000);
 
@@ -1183,6 +1219,26 @@ function shouldHighlightLatestDraw() {
     return false;
   }
   return Date.now() - state.latestDrawAt <= 5000;
+}
+
+
+async function copyText(text, okMessage) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const input = document.createElement('textarea');
+      input.value = text;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand('copy');
+      input.remove();
+    }
+    setNotice(okMessage);
+  } catch {
+    setNotice(`复制失败，请手动复制：${text}`);
+  }
+  safeRender();
 }
 
 function createButton(text) {

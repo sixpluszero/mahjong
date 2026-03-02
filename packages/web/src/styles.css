@@ -80,6 +80,10 @@ button.danger {
   font-size: 14px;
   color: var(--muted);
   margin-bottom: 8px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fbff;
 }
 
 #diag {

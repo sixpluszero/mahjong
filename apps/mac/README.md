@@ -1,6 +1,20 @@
 # @mahjong/mac
 
-react-native-macos app scaffold.
+react-native-macos client workspace.
 
-- EN: This folder will host the macOS native client UI.
-- 中文：该目录将承载 macOS 原生客户端 UI。
+## Current status
+- Source UI exists in `src/` (preview/live lobby)
+- Local host app generation script exists in `scripts/bootstrap-host.sh`
+
+## Bootstrap host app (local)
+
+```bash
+cd apps/mac
+./scripts/bootstrap-host.sh
+```
+
+Then continue with react-native-macos official setup in generated host project.
+
+## Why this split?
+- Keep generated native host files out of git
+- Keep product UI/runtime source in this repo under `apps/mac/src`

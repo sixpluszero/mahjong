@@ -20,32 +20,32 @@
         <h2>连接与房间</h2>
         <div class="row">
           <label>昵称</label>
-          <input id="nameInput" placeholder="例如 玩家A" maxlength="20" />
+          <input id="nameInput" data-testid="name-input" placeholder="例如 玩家A" maxlength="20" />
           <button id="randomNameBtn" type="button">随机昵称</button>
-          <button id="helloBtn" type="button">确认昵称</button>
+          <button id="helloBtn" data-testid="hello-btn" type="button">确认昵称</button>
         </div>
 
         <div class="row">
-          <button id="createRoomBtn" type="button">创建房间</button>
-          <input id="roomIdInput" placeholder="输入房间号加入" maxlength="6" />
-          <button id="joinRoomBtn" type="button">加入房间</button>
+          <button id="createRoomBtn" data-testid="create-room-btn" type="button">创建房间</button>
+          <input id="roomIdInput" data-testid="room-id-input" placeholder="输入房间号加入" maxlength="6" />
+          <button id="joinRoomBtn" data-testid="join-room-btn" type="button">加入房间</button>
           <button id="addBotBtn" type="button">添加机器人</button>
-          <button id="readyBtn" type="button">准备</button>
+          <button id="readyBtn" data-testid="ready-btn" type="button">准备</button>
         </div>
 
-        <div id="status"></div>
+        <div id="status" data-testid="status"></div>
         <div class="row">
           <button id="reconnectBtn" type="button">重新连接</button>
         </div>
         <div id="diag"></div>
-        <div id="roomInfo"></div>
+        <div id="roomInfo" data-testid="room-info"></div>
         <div class="row">
-          <button id="copyRoomIdBtn" type="button">复制房间号</button>
-          <button id="copyInviteBtn" type="button">复制邀请链接</button>
+          <button id="copyRoomIdBtn" data-testid="copy-room-id-btn" type="button">复制房间号</button>
+          <button id="copyInviteBtn" data-testid="copy-invite-btn" type="button">复制邀请链接</button>
           <button id="refreshRoomsBtn" type="button">刷新活跃房间</button>
         </div>
-        <div id="activeRooms"></div>
-        <div id="players"></div>
+        <div id="activeRooms" data-testid="active-rooms"></div>
+        <div id="players" data-testid="players"></div>
         <h3>总分榜</h3>
         <div id="totals"></div>
         <h3>历史战绩（最近 10 局）</h3>

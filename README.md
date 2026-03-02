@@ -20,6 +20,16 @@ Quick start:
   - `npm run dev:client`
   - `ROOM_ID=<room_id_from_logs> npm run dev:client`
 
+## E2E (Playwright)
+- Install deps (once): `npm install`
+- Install Playwright browser (once): `npx playwright install chromium`
+- Run E2E from repo root: `npm run test:e2e`
+- Headed mode: `npm run test:e2e:headed`
+- Current coverage includes invite-link room join:
+  - Client A create room -> get invite link
+  - Client B open invite link and join
+  - Both clients show the same room id and joined players
+
 ## Mobile LAN + PWA test
 - Start server: `npm run dev:server`
 - In server logs, find LAN URL (example: `http://192.168.1.20:8787`).

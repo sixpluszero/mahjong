@@ -136,3 +136,17 @@ Original prompt: 我希望在这个麻将游戏中加入机器人功能。当人
 3. 网页端补充“房间内复制房间号、一键邀请链接、错误提示面板”。
 4. 开发网页端房间页与对局页，接 WebSocket 协议。
 5. 增加断线重连与回放日志。
+
+## 2026-03-02
+
+### E2E 测试接入（进行中）
+- 新增最小 Playwright E2E 骨架：`playwright.config.js` + `e2e/invite-link-room-join.spec.js`。
+- 前端增加 E2E 稳定选择器（`data-testid`）用于昵称、建房、入房、房间信息、玩家列表等关键节点。
+- 在 `copyInviteBtn` 上新增 `data-invite-link`（由渲染阶段注入），规避剪贴板权限导致的测试不稳定。
+- 根脚本新增：`npm run test:e2e` / `npm run test:e2e:headed`。
+- README 已补充 E2E 运行步骤。
+- 风险：当前环境离线，`npm install -D @playwright/test` 失败（ENOTFOUND registry.npmjs.org），待联网后安装并跑通 E2E。
+
+### TODO
+- 联网后执行：`npm install`、`npx playwright install chromium`、`npm run test:e2e`。
+- 若 CI 环境无浏览器缓存，确保增加 Playwright browser install 步骤。

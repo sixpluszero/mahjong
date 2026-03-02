@@ -415,6 +415,9 @@ function render() {
   const mySeatState = (state.roomState?.players || []).find((p) => p.occupied && p.seat === seat);
   const maxRounds = state.roomState?.maxRounds || 8;
   const idleCloseText = formatIdleCloseCountdown(state.roomState?.idleCloseDeadlineAt);
+  const inviteLink = state.roomId
+    ? `${location.origin}?room=${encodeURIComponent(state.roomId)}`
+    : '';
 
   const base = state.connected
     ? `已连接 ${wsUrl} | clientId=${state.clientId || '-'} | 昵称=${state.name || '-'}`
@@ -435,6 +438,11 @@ function render() {
   ].join('\n');
 
   el.roomInfo.textContent = `房间号：${state.roomId || '-'} | 房间状态：${roomStatus} | 阶段：${phase} | 当前局次：${state.roomState?.roundNo || 0}/${maxRounds} | 我的座位：${seat ?? '-'} | 本局分数：${state.you?.score ?? '-'} | 我的总分：${mySeatState?.totalScore ?? '-'} | 再来一局确认：${rematchReady}/${occupiedSeats || 4} | 无真人在线关房：${idleCloseText}`;
+  if (inviteLink) {
+    el.copyInviteBtn.dataset.inviteLink = inviteLink;
+  } else {
+    delete el.copyInviteBtn.dataset.inviteLink;
+  }
   el.addBotBtn.disabled = !canAddBot;
 
   renderPlayers();

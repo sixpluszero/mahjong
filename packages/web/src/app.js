@@ -528,24 +528,26 @@ function renderTrend() {
 }
 
 function renderFinalStats() {
-  const finished = Boolean(state.roomState?.matchFinished);
-  if (!finished) {
-    el.finalStats.textContent = '未结束（默认最多8局）';
+  const players = (state.roomState?.players || []).filter((p) => p.occupied);
+  if (players.length === 0) {
+    el.finalStats.textContent = '暂无';
     return;
   }
 
-  const standings = state.roomState?.finalStandings || [];
-  if (standings.length === 0) {
-    el.finalStats.textContent = '本房间对局已结束';
-    return;
-  }
+  const sorted = [...players].sort((a, b) => (b.totalScore ?? 0) - (a.totalScore ?? 0) || a.seat - b.seat);
+  const finished = Boolean(state.roomState?.matchFinished);
+  const title = finished
+    ? `本房间已完成 ${state.roomState?.roundNo || 0}/${state.roomState?.maxRounds || 8} 局（最终榜）`
+    : `进行中：第 ${state.roomState?.roundNo || 0}/${state.roomState?.maxRounds || 8} 局`;
 
   const lines = [
-    `本房间已完成 ${state.roomState?.roundNo || 0}/${state.roomState?.maxRounds || 8} 局，最终排名如下：`,
-    ...standings.map((x, idx) => `${idx + 1}. 座位${x.seat} ${x.name}${x.isBot ? '(机器人)' : ''}：${x.totalScore}`)
+    title,
+    ...sorted.map((x, idx) => `${idx + 1}. 座位${x.seat} ${x.name}${x.isBot ? '(机器人)' : ''}：${x.totalScore ?? 0}`)
   ];
+
   el.finalStats.textContent = lines.join('\n');
 }
+
 
 function renderGameInfo() {
   if (!state.gameState) {

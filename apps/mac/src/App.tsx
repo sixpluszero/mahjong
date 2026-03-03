@@ -28,6 +28,7 @@ export default function App(): JSX.Element {
   const [lastDiscardFlash, setLastDiscardFlash] = useState(false);
   const [actionToast, setActionToast] = useState('');
   const [settlementModalVisible, setSettlementModalVisible] = useState(false);
+  const [lastSettlementRound, setLastSettlementRound] = useState<number | null>(null);
   const [state, setState] = useState<LobbyViewState>({
     name: '', roomId: '', players: [], connected: false, statusKey: 'idle', yourHandTiles: [], discards: [], yourMelds: [],
     canSelfHu: false, pendingReaction: null, rematchReadySeats: [], matchFinished: false, scoreFeed: []
@@ -36,7 +37,13 @@ export default function App(): JSX.Element {
   const runtime = useMemo(() => createLobbyRuntime({ mode, wsUrl, onState: (patch) => setState((s) => ({ ...s, ...patch })) }), [mode, wsUrl]);
   useEffect(() => { runtime.connect(); return () => runtime.disconnect(); }, [runtime]);
   useEffect(() => { if (state.gamePhase !== 'exchange') setExchangeSelected([]); }, [state.gamePhase]);
-  useEffect(() => { if (inSettlement || state.matchFinished) setSettlementModalVisible(true); }, [inSettlement, state.matchFinished, state.roundNo]);
+  useEffect(() => {
+    const latest = (state.roundHistory || []).slice(-1)[0];
+    if (!latest?.roundNo) return;
+    if (lastSettlementRound === latest.roundNo) return;
+    setLastSettlementRound(latest.roundNo);
+    setSettlementModalVisible(true);
+  }, [state.roundHistory, lastSettlementRound]);
 
   const canDiscard = state.gamePhase === 'play' && state.turnSeat === state.yourSeat;
   const inExchange = state.gamePhase === 'exchange';
@@ -196,7 +203,7 @@ export default function App(): JSX.Element {
             {inLack ? <View style={styles.row}><Btn text={t(lang, 'lackWan')} onPress={() => runAction('定缺万', () => runtime.setLack('wan'))} /><Btn text={t(lang, 'lackTiao')} onPress={() => runAction('定缺条', () => runtime.setLack('tiao'))} /><Btn text={t(lang, 'lackTong')} onPress={() => runAction('定缺筒', () => runtime.setLack('tong'))} /></View> : null}
             {inSettlement ? <View style={styles.row}><Btn text={t(lang, 'rematch')} onPress={() => runAction('再来一局', () => runtime.requestRematch())} /></View> : null}
 
-            {(inSettlement || state.matchFinished) && settlementModalVisible ? (
+            {settlementModalVisible ? (
               <View style={styles.settlementModalMask}>
                 <View style={styles.settlementModalCard}>
                   <Text style={styles.settlementTitle}>本局结算</Text>

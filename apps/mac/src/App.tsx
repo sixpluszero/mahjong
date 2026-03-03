@@ -8,13 +8,13 @@ const I18N: Record<Lang, Record<string, string>> = {
     randomName: 'Random', hello: 'Hello', create: 'Create', join: 'Join', addBot: 'Add Bot', ready: 'Ready', rematch: 'Rematch',
     scoreboard: 'Scoreboard', melds: 'Peng/Gang', status: 'Status', phase: 'Phase', table: 'Table', submitExchange: 'Submit Exchange',
     lackWan: 'Lack Wan', lackTiao: 'Lack Tiao', lackTong: 'Lack Tong', reactHu: 'Hu', reactGang: 'Gang', reactPeng: 'Peng', reactPass: 'Pass',
-    selfHu: 'Self Hu', turn: 'Turn', room: 'Room', connected: 'Connected', actions: 'Actions', countdown: 'Countdown'
+    selfHu: 'Self Hu', turn: 'Turn', room: 'Room', connected: 'Connected', actions: 'Actions', countdown: 'Countdown', confirm: 'Confirm'
   },
   zh: {
     randomName: '随机昵称', hello: '确认昵称', create: '创建房间', join: '加入房间', addBot: '添加机器人', ready: '准备', rematch: '再来一局',
     scoreboard: '记分板', melds: '碰杠牌组', status: '状态', phase: '阶段', table: '牌桌', submitExchange: '提交换三张',
     lackWan: '定缺万', lackTiao: '定缺条', lackTong: '定缺筒', reactHu: '胡', reactGang: '杠', reactPeng: '碰', reactPass: '过',
-    selfHu: '自摸胡', turn: '当前出牌', room: '房间', connected: '连接', actions: '操作', countdown: '倒计时'
+    selfHu: '自摸胡', turn: '当前出牌', room: '房间', connected: '连接', actions: '操作', countdown: '倒计时', confirm: '确认'
   }
 };
 const t = (l: Lang, k: string) => I18N[l][k] || k;
@@ -27,6 +27,7 @@ export default function App(): JSX.Element {
   const [exchangeSelected, setExchangeSelected] = useState<string[]>([]);
   const [lastDiscardFlash, setLastDiscardFlash] = useState(false);
   const [actionToast, setActionToast] = useState('');
+  const [settlementModalVisible, setSettlementModalVisible] = useState(false);
   const [state, setState] = useState<LobbyViewState>({
     name: '', roomId: '', players: [], connected: false, statusKey: 'idle', yourHandTiles: [], discards: [], yourMelds: [],
     canSelfHu: false, pendingReaction: null, rematchReadySeats: [], matchFinished: false, scoreFeed: []
@@ -35,6 +36,7 @@ export default function App(): JSX.Element {
   const runtime = useMemo(() => createLobbyRuntime({ mode, wsUrl, onState: (patch) => setState((s) => ({ ...s, ...patch })) }), [mode, wsUrl]);
   useEffect(() => { runtime.connect(); return () => runtime.disconnect(); }, [runtime]);
   useEffect(() => { if (state.gamePhase !== 'exchange') setExchangeSelected([]); }, [state.gamePhase]);
+  useEffect(() => { if (inSettlement || state.matchFinished) setSettlementModalVisible(true); }, [inSettlement, state.matchFinished, state.roundNo]);
 
   const canDiscard = state.gamePhase === 'play' && state.turnSeat === state.yourSeat;
   const inExchange = state.gamePhase === 'exchange';
@@ -194,35 +196,38 @@ export default function App(): JSX.Element {
             {inLack ? <View style={styles.row}><Btn text={t(lang, 'lackWan')} onPress={() => runAction('定缺万', () => runtime.setLack('wan'))} /><Btn text={t(lang, 'lackTiao')} onPress={() => runAction('定缺条', () => runtime.setLack('tiao'))} /><Btn text={t(lang, 'lackTong')} onPress={() => runAction('定缺筒', () => runtime.setLack('tong'))} /></View> : null}
             {inSettlement ? <View style={styles.row}><Btn text={t(lang, 'rematch')} onPress={() => runAction('再来一局', () => runtime.requestRematch())} /></View> : null}
 
-            {(inSettlement || state.matchFinished) ? (
-              <View style={styles.settlementOverlay}>
-                <Text style={styles.settlementTitle}>本局结算</Text>
-                {leaderboard.map((p, i) => {
-                  const delta = Number(roundDeltaMap.get(p.seat) ?? p.roundDelta ?? 0);
-                  const deltaText = delta > 0 ? `+${delta}` : `${delta}`;
-                  return <Text key={`st-${p.seat}`} style={styles.settlementItem}>{i + 1}. S{p.seat} {p.name}  本局 {deltaText}  ·  总分 {p.totalScore}</Text>;
-                })}
-                <View style={styles.row}>
-                  <Btn text={t(lang, 'rematch')} onPress={() => runAction('再来一局', () => runtime.requestRematch())} />
-                </View>
+            {(inSettlement || state.matchFinished) && settlementModalVisible ? (
+              <View style={styles.settlementModalMask}>
+                <View style={styles.settlementModalCard}>
+                  <Text style={styles.settlementTitle}>本局结算</Text>
+                  {leaderboard.map((p, i) => {
+                    const delta = Number(roundDeltaMap.get(p.seat) ?? p.roundDelta ?? 0);
+                    const deltaText = delta > 0 ? `+${delta}` : `${delta}`;
+                    return <Text key={`st-${p.seat}`} style={styles.settlementItem}>{i + 1}. S{p.seat} {p.name}  本局 {deltaText}  ·  总分 {p.totalScore}</Text>;
+                  })}
 
-                <Text style={styles.revealItem}>亮牌数据条目: {(state.revealedHands || []).length}</Text>
-                {(state.revealedHands || []).length > 0 ? (
-                  <View style={styles.revealPanel}>
-                    <Text style={styles.revealTitle}>本局亮牌</Text>
-                    {(state.revealedHands || []).map((rh: any) => {
-                      const name = findPlayerBySeat(state.players, rh.seat)?.name || `S${rh.seat}`;
-                      const tiles = (rh.hand || []).map((t: any) => `${t.suit?.[0] === 'w' ? 'w' : t.suit?.[0] === 't' ? 't' : 'b'}${t.rank}`);
-                      return (
-                        <Text key={`rh-${rh.seat}`} style={styles.revealItem}>{name}: {tiles.map((c: string) => tileCodeToZh(c)).join(' ') || '-'}</Text>
-                      );
-                    })}
+                  {(state.revealedHands || []).length > 0 ? (
+                    <View style={styles.revealPanel}>
+                      <Text style={styles.revealTitle}>本局亮牌</Text>
+                      {(state.revealedHands || []).map((rh: any) => {
+                        const name = findPlayerBySeat(state.players, rh.seat)?.name || `S${rh.seat}`;
+                        const tiles = (rh.hand || []).map((t: any) => `${t.suit?.[0] === 'w' ? 'w' : t.suit?.[0] === 't' ? 't' : 'b'}${t.rank}`);
+                        return (
+                          <Text key={`rh-${rh.seat}`} style={styles.revealItem}>{name}: {tiles.map((c: string) => tileCodeToZh(c)).join(' ') || '-'}</Text>
+                        );
+                      })}
+                    </View>
+                  ) : (
+                    <Text style={styles.revealItem}>（未收到结算亮牌数据）</Text>
+                  )}
+
+                  <View style={[styles.row, { justifyContent: 'center' }]}>
+                    <Btn text={t(lang, 'confirm')} onPress={() => setSettlementModalVisible(false)} />
                   </View>
-                ) : (
-                  <Text style={styles.revealItem}>（未收到结算亮牌数据，确认服务端已重启到最新代码）</Text>
-                )}
+                </View>
               </View>
             ) : null}
+
 
             {actionToast ? <View style={styles.actionToast}><Text style={styles.actionToastText}>{actionToast}</Text></View> : null}
             <View style={styles.handArea}>
@@ -508,6 +513,8 @@ const styles = StyleSheet.create({
   actionToast: { alignSelf: 'center', marginTop: 8, backgroundColor: '#312e81', borderColor: '#818cf8', borderWidth: 1, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999 },
   actionToastText: { color: '#e0e7ff', fontWeight: '700' },
   settlementOverlay: { marginTop: 10, borderWidth: 1, borderColor: '#7c3aed', borderRadius: 10, padding: 10, backgroundColor: '#1f1147' },
+  settlementModalMask: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: 'rgba(2,6,23,0.72)', justifyContent: 'center', alignItems: 'center', zIndex: 30 },
+  settlementModalCard: { width: '86%', maxWidth: 820, borderWidth: 1, borderColor: '#7c3aed', borderRadius: 12, padding: 12, backgroundColor: '#1f1147' },
   settlementTitle: { color: '#f5d0fe', fontWeight: '800', fontSize: 16 },
   settlementItem: { color: '#e9d5ff', marginTop: 4 },
   revealPanel: { marginTop: 8, borderWidth: 1, borderColor: '#4c1d95', borderRadius: 8, padding: 8, backgroundColor: '#130a2f' },

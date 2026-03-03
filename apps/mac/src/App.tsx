@@ -8,13 +8,13 @@ const I18N: Record<Lang, Record<string, string>> = {
     randomName: 'Random', hello: 'Hello', create: 'Create', join: 'Join', addBot: 'Add Bot', ready: 'Ready', rematch: 'Rematch',
     scoreboard: 'Scoreboard', melds: 'Melds', status: 'Status', phase: 'Phase', table: 'Table', submitExchange: 'Submit Exchange',
     lackWan: 'Lack Wan', lackTiao: 'Lack Tiao', lackTong: 'Lack Tong', reactHu: 'Hu', reactGang: 'Gang', reactPeng: 'Peng', reactPass: 'Pass',
-    selfHu: 'Self Hu', turn: 'Turn', room: 'Room', connected: 'Connected'
+    selfHu: 'Self Hu', turn: 'Turn', room: 'Room', connected: 'Connected', actions: 'Actions', countdown: 'Countdown'
   },
   zh: {
     randomName: '随机昵称', hello: '确认昵称', create: '创建房间', join: '加入房间', addBot: '添加机器人', ready: '准备', rematch: '再来一局',
     scoreboard: '记分板', melds: '碰/杠', status: '状态', phase: '阶段', table: '牌桌', submitExchange: '提交换三张',
     lackWan: '定缺万', lackTiao: '定缺条', lackTong: '定缺筒', reactHu: '胡', reactGang: '杠', reactPeng: '碰', reactPass: '过',
-    selfHu: '自摸胡', turn: '当前出牌', room: '房间', connected: '连接'
+    selfHu: '自摸胡', turn: '当前出牌', room: '房间', connected: '连接', actions: '操作', countdown: '倒计时'
   }
 };
 const t = (l: Lang, k: string) => I18N[l][k] || k;
@@ -38,6 +38,17 @@ export default function App(): JSX.Element {
   const inExchange = state.gamePhase === 'exchange';
   const inLack = state.gamePhase === 'lack';
   const inSettlement = state.gamePhase === 'settlement';
+
+  const actionOpen = !!state.pendingReaction || canDiscard;
+  const [actionCountdown, setActionCountdown] = useState(0);
+  useEffect(() => {
+    if (!actionOpen) { setActionCountdown(0); return; }
+    setActionCountdown(8);
+    const timer = setInterval(() => {
+      setActionCountdown((n) => (n <= 1 ? 0 : n - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [actionOpen, state.turnSeat, state.gamePhase, state.pendingReaction?.tileCode]);
 
   const anGang = findAnGangCandidates(state.yourHandTiles);
   const buGang = findBuGangCandidates(state.yourHandTiles, state.yourMelds);
@@ -112,16 +123,28 @@ export default function App(): JSX.Element {
               <DiscardRivers discardsBySeat={discardsBySeat} mySeat={mySeat} />
             </View>
 
-            {state.pendingReaction ? (
-              <View style={styles.actionBar}>
-                {state.pendingReaction.canHu && <Btn text={t(lang, 'reactHu')} onPress={() => run(() => runtime.react('hu'))} />}
-                {state.pendingReaction.canGang && <Btn text={t(lang, 'reactGang')} onPress={() => run(() => runtime.react('gang'))} />}
-                {state.pendingReaction.canPeng && <Btn text={t(lang, 'reactPeng')} onPress={() => run(() => runtime.react('peng'))} />}
-                <Btn text={t(lang, 'reactPass')} onPress={() => run(() => runtime.react('pass'))} />
+            {actionOpen ? (
+              <View style={styles.actionBarWrap}>
+                <View style={styles.actionBarHeader}>
+                  <Text style={styles.actionTitle}>{t(lang, 'actions')}</Text>
+                  <Text style={styles.actionTimer}>{t(lang, 'countdown')}: {actionCountdown}s</Text>
+                </View>
+                {state.pendingReaction ? (
+                  <View style={styles.actionBar}>
+                    {state.pendingReaction.canHu && <Btn text={t(lang, 'reactHu')} onPress={() => run(() => runtime.react('hu'))} />}
+                    {state.pendingReaction.canGang && <Btn text={t(lang, 'reactGang')} onPress={() => run(() => runtime.react('gang'))} />}
+                    {state.pendingReaction.canPeng && <Btn text={t(lang, 'reactPeng')} onPress={() => run(() => runtime.react('peng'))} />}
+                    <Btn text={t(lang, 'reactPass')} onPress={() => run(() => runtime.react('pass'))} />
+                  </View>
+                ) : (
+                  <View style={styles.actionBar}>
+                    {canDiscard && state.canSelfHu ? <Btn text={t(lang, 'selfHu')} onPress={() => run(() => runtime.selfHu())} /> : null}
+                    {canDiscard && !state.canSelfHu ? <Text style={styles.meta}>请先出牌</Text> : null}
+                  </View>
+                )}
               </View>
             ) : null}
 
-            {!state.pendingReaction && canDiscard && state.canSelfHu ? <View style={styles.row}><Btn text={t(lang, 'selfHu')} onPress={() => run(() => runtime.selfHu())} /></View> : null}
             {!state.pendingReaction && canDiscard && anGang.map((x) => <View key={x.id} style={styles.row}><Btn text={`暗杠 ${x.code}`} onPress={() => run(() => runtime.anGang(x.id))} /></View>)}
             {!state.pendingReaction && canDiscard && buGang.map((x) => <View key={x.id} style={styles.row}><Btn text={`补杠 ${x.code}`} onPress={() => run(() => runtime.buGang(x.id))} /></View>)}
 
@@ -243,7 +266,11 @@ const styles = StyleSheet.create({
   riverMiddle: { flexDirection: 'row', justifyContent: 'space-between', marginVertical: 6 },
   riverCol: { width: '48%', minHeight: 30, flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
 
-  actionBar: { marginTop: 10, flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center', backgroundColor: '#111827', borderRadius: 8, padding: 8 },
+  actionBarWrap: { marginTop: 10, backgroundColor: '#111827', borderRadius: 8, padding: 8, borderWidth: 1, borderColor: '#334155' },
+  actionBarHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  actionTitle: { color: '#f8fafc', fontWeight: '700' },
+  actionTimer: { color: '#fbbf24', fontWeight: '700' },
+  actionBar: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
   handArea: { marginTop: 10, borderTopWidth: 1, borderTopColor: '#334155', paddingTop: 10 },
 
   panel: { marginTop: 10, borderWidth: 1, borderColor: '#334155', borderRadius: 10, padding: 8, backgroundColor: '#0b1220' },

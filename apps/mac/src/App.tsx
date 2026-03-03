@@ -158,28 +158,6 @@ export default function App(): JSX.Element {
               </View>
             </View>
 
-            {actionOpen ? (
-              <View style={styles.actionBarWrap}>
-                <View style={styles.actionBarHeader}>
-                  <Text style={styles.actionTitle}>{t(lang, 'actions')}</Text>
-                  <Text style={[styles.actionTimer, actionCountdown <= 3 ? styles.actionTimerDanger : (actionCountdown <= 5 ? styles.actionTimerWarn : null)]}>{t(lang, 'countdown')}: {actionCountdown}s</Text>
-                </View>
-                {actionCountdown > 0 ? <View style={[styles.countdownBar, actionCountdown <= 3 ? styles.countdownBarDanger : (actionCountdown <= 5 ? styles.countdownBarWarn : null), { width: `${Math.max(8, Math.round((actionCountdown / 15) * 100))}%` }]} /> : null}
-                {state.pendingReaction ? (
-                  <View style={styles.actionBar}>
-                    {state.pendingReaction.canHu && <Btn text={t(lang, 'reactHu')} onPress={() => runAction('胡', () => runtime.react('hu'))} />}
-                    {state.pendingReaction.canGang && <Btn text={t(lang, 'reactGang')} onPress={() => runAction('杠', () => runtime.react('gang'))} />}
-                    {state.pendingReaction.canPeng && <Btn text={t(lang, 'reactPeng')} onPress={() => runAction('碰', () => runtime.react('peng'))} />}
-                    <Btn text={t(lang, 'reactPass')} onPress={() => runAction('过', () => runtime.react('pass'))} />
-                  </View>
-                ) : (
-                  <View style={styles.actionBar}>
-                    <Btn text={t(lang, 'selfHu')} disabled={!(canDiscard && state.canSelfHu)} onPress={() => runAction('自摸胡', () => runtime.selfHu())} />
-                    {!canDiscard ? <Text style={styles.meta}>当前不可操作：未到你回合</Text> : null}
-                  </View>
-                )}
-              </View>
-            ) : null}
 
             {!state.pendingReaction && canDiscard && anGang.map((x) => <View key={x.id} style={styles.row}><Btn text={`暗杠 ${tileCodeToZh(x.code)}`} onPress={() => runAction('暗杠', () => runtime.anGang(x.id))} /></View>)}
             {!state.pendingReaction && canDiscard && buGang.map((x) => <View key={x.id} style={styles.row}><Btn text={`补杠 ${tileCodeToZh(x.code)}`} onPress={() => runAction('补杠', () => runtime.buGang(x.id))} /></View>)}
@@ -206,6 +184,29 @@ export default function App(): JSX.Element {
             <View style={styles.handArea}>
               <View style={[styles.tileRow, !(canDiscard || inExchange) && styles.tileRowDisabled]}>{state.yourHandTiles.map((tile) => <Tile key={tile.id} code={tile.code} selected={exchangeSelected.includes(tile.id)} active={canDiscard || inExchange} onPress={() => onTilePress(tile)} />)}</View>
             </View>
+
+            {actionOpen ? (
+              <View style={styles.actionBarWrap}>
+                <View style={styles.actionBarHeader}>
+                  <Text style={styles.actionTitle}>{t(lang, 'actions')}</Text>
+                  <Text style={[styles.actionTimer, actionCountdown <= 3 ? styles.actionTimerDanger : (actionCountdown <= 5 ? styles.actionTimerWarn : null)]}>{t(lang, 'countdown')}: {actionCountdown}s</Text>
+                </View>
+                {actionCountdown > 0 ? <View style={[styles.countdownBar, actionCountdown <= 3 ? styles.countdownBarDanger : (actionCountdown <= 5 ? styles.countdownBarWarn : null), { width: `${Math.max(8, Math.round((actionCountdown / 15) * 100))}%` }]} /> : null}
+                {state.pendingReaction ? (
+                  <View style={styles.actionBar}>
+                    {state.pendingReaction.canHu && <Btn text={t(lang, 'reactHu')} onPress={() => runAction('胡', () => runtime.react('hu'))} />}
+                    {state.pendingReaction.canGang && <Btn text={t(lang, 'reactGang')} onPress={() => runAction('杠', () => runtime.react('gang'))} />}
+                    {state.pendingReaction.canPeng && <Btn text={t(lang, 'reactPeng')} onPress={() => runAction('碰', () => runtime.react('peng'))} />}
+                    <Btn text={t(lang, 'reactPass')} onPress={() => runAction('过', () => runtime.react('pass'))} />
+                  </View>
+                ) : (
+                  <View style={styles.actionBar}>
+                    <Btn text={t(lang, 'selfHu')} disabled={!(canDiscard && state.canSelfHu)} onPress={() => runAction('自摸胡', () => runtime.selfHu())} />
+                    {!canDiscard ? <Text style={styles.meta}>当前不可操作：未到你回合</Text> : null}
+                  </View>
+                )}
+              </View>
+            ) : null}
           </View>
           </View>
         </View>

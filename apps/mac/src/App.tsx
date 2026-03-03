@@ -60,6 +60,8 @@ export default function App(): JSX.Element {
     return () => runtime.disconnect();
   }, [runtime]);
 
+  const latestDrawIndex = state.yourHandCodes.length > 0 ? state.yourHandCodes.length - 1 : -1;
+
   const statusText = (() => {
     const vars = { ...(state.statusArgs || {}) } as Record<string, string | number>;
     const detail = String(vars.detail || '');
@@ -118,7 +120,7 @@ export default function App(): JSX.Element {
             <Text style={styles.roomMeta}>{tf(lang, 'yourSeat')}: {state.yourSeat ?? '-'}</Text>
             <Text style={styles.roomMeta}>{tf(lang, 'turnSeat')}: {state.turnSeat ?? '-'}</Text>
             <Text style={[styles.roomMeta, { marginTop: 8 }]}>{tf(lang, 'hand')}:</Text>
-            <View style={styles.tileRow}>{(state.yourHandCodes || []).length === 0 ? <Text style={styles.playerLine}>-</Text> : state.yourHandCodes.map((c, i) => <Tile key={`${c}-${i}`} code={c} />)}</View>
+            <View style={styles.tileRow}>{(state.yourHandCodes || []).length === 0 ? <Text style={styles.playerLine}>-</Text> : state.yourHandCodes.map((c, i) => <Tile key={`${c}-${i}`} code={c} selected={i === latestDrawIndex} />)}</View>
             <Text style={[styles.roomMeta, { marginTop: 8 }]}>{tf(lang, 'discards')}:</Text>
             <View style={styles.tileRow}>{(state.discards || []).length === 0 ? <Text style={styles.playerLine}>-</Text> : state.discards.map((d, i) => <Tile key={`${d.tileCode}-${i}`} code={`${d.tileCode}@${d.seat}`} small />)}</View>
           </View>
@@ -136,17 +138,21 @@ function ActionButton({ text, onPress, active = true, disabled = false }: { text
   );
 }
 
-function Tile({ code, small = false }: { code: string; small?: boolean }) {
+function Tile({ code, small = false, selected = false }: { code: string; small?: boolean; selected?: boolean }) {
   const pureCode = code.includes('@') ? code.split('@')[0] : code;
+  const seatSuffix = code.includes('@') ? `S${code.split('@')[1]}` : '';
   const suit = pureCode[0];
   const rank = Number(pureCode.slice(1));
   const { suitLabel, color } = suitMeta(suit);
 
   return (
-    <View style={[styles.tile, small && styles.tileSmall]}>
+    <View style={[styles.tile, small && styles.tileSmall, selected && styles.tileSelected]}>
       <Text style={[styles.tileCorner, { color }]}>{suitLabel}</Text>
       <Text style={[styles.tileRank, { color }, small && styles.tileRankSmall]}>{Number.isFinite(rank) ? rank : '?'}</Text>
-      <Text style={[styles.tileBottom, { color }]}>{suitLabel}</Text>
+      <View style={styles.tileFootRow}>
+        <Text style={[styles.tileBottom, { color }]}>{suitLabel}</Text>
+        {seatSuffix ? <Text style={styles.tileSeat}>{seatSuffix}</Text> : null}
+      </View>
     </View>
   );
 }
@@ -178,10 +184,13 @@ const styles = StyleSheet.create({
   roomMeta: { color: '#cbd5e1', marginTop: 4 },
   playerLine: { color: '#94a3b8', marginTop: 4 },
   tileRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 },
-  tile: { width: 38, height: 56, borderWidth: 1, borderColor: '#d1d5db', borderRadius: 6, backgroundColor: '#fff', paddingHorizontal: 4, paddingVertical: 3, justifyContent: 'space-between' },
-  tileSmall: { width: 34, height: 48 },
+  tile: { width: 40, height: 62, borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, backgroundColor: '#fff', paddingHorizontal: 4, paddingVertical: 4, justifyContent: 'space-between', shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 3, shadowOffset: { width: 0, height: 1 } },
+  tileSmall: { width: 36, height: 52, borderRadius: 7 },
+  tileSelected: { borderColor: '#f59e0b', shadowColor: '#f59e0b', shadowOpacity: 0.45, shadowRadius: 8, shadowOffset: { width: 0, height: 0 }, transform: [{ translateY: -2 }] },
   tileCorner: { fontSize: 10, fontWeight: '700' },
   tileRank: { fontSize: 22, fontWeight: '800', textAlign: 'center', lineHeight: 24 },
   tileRankSmall: { fontSize: 18, lineHeight: 20 },
-  tileBottom: { fontSize: 10, fontWeight: '700', textAlign: 'right' }
+  tileFootRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  tileBottom: { fontSize: 10, fontWeight: '700' },
+  tileSeat: { fontSize: 8, color: '#64748b' }
 });

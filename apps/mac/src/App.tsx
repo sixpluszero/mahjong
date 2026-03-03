@@ -4,8 +4,8 @@ import { createLobbyRuntime, type LobbyViewState, type HandTile, type Meld } fro
 
 type Lang = 'en' | 'zh';
 const I18N: Record<Lang, Record<string, string>> = {
-  en: { hello:'Hello',create:'Create',join:'Join',addBot:'Add Bot',ready:'Ready',rematch:'Rematch',scoreboard:'Scoreboard',melds:'Melds',status:'Status',phase:'Phase',table:'Table',submitExchange:'Submit Exchange',lackWan:'Lack Wan',lackTiao:'Lack Tiao',lackTong:'Lack Tong',reactHu:'Hu',reactGang:'Gang',reactPeng:'Peng',reactPass:'Pass',selfHu:'Self Hu' },
-  zh: { hello:'确认昵称',create:'创建房间',join:'加入房间',addBot:'添加机器人',ready:'准备',rematch:'再来一局',scoreboard:'记分板',melds:'碰/杠',status:'状态',phase:'阶段',table:'牌桌',submitExchange:'提交换三张',lackWan:'定缺万',lackTiao:'定缺条',lackTong:'定缺筒',reactHu:'胡',reactGang:'杠',reactPeng:'碰',reactPass:'过',selfHu:'自摸胡' }
+  en: { randomName:'Random', hello:'Hello',create:'Create',join:'Join',addBot:'Add Bot',ready:'Ready',rematch:'Rematch',scoreboard:'Scoreboard',melds:'Melds',status:'Status',phase:'Phase',table:'Table',submitExchange:'Submit Exchange',lackWan:'Lack Wan',lackTiao:'Lack Tiao',lackTong:'Lack Tong',reactHu:'Hu',reactGang:'Gang',reactPeng:'Peng',reactPass:'Pass',selfHu:'Self Hu' },
+  zh: { randomName:'随机昵称', hello:'确认昵称',create:'创建房间',join:'加入房间',addBot:'添加机器人',ready:'准备',rematch:'再来一局',scoreboard:'记分板',melds:'碰/杠',status:'状态',phase:'阶段',table:'牌桌',submitExchange:'提交换三张',lackWan:'定缺万',lackTiao:'定缺条',lackTong:'定缺筒',reactHu:'胡',reactGang:'杠',reactPeng:'碰',reactPass:'过',selfHu:'自摸胡' }
 };
 const t=(l:Lang,k:string)=>I18N[l][k]||k;
 
@@ -32,6 +32,7 @@ export default function App(): JSX.Element {
   const leaderboard=[...state.players].sort((a,b)=>b.totalScore-a.totalScore||a.seat-b.seat);
 
   const run=(fn:()=>boolean)=>{ if(busy) return; setBusy(true); try{fn();}finally{setTimeout(()=>setBusy(false),120);} };
+  const genRandomName=()=>{const p=['雀友','牌侠','听牌王','川麻客','杠上花'];const q=['东风','南风','西风','北风','红中','发财','白板'];const a=p[Math.floor(Math.random()*p.length)];const b=q[Math.floor(Math.random()*q.length)];return `${a}${b}${Math.floor(1000+Math.random()*9000)}`;};
   const onTilePress=(tile:HandTile)=>{ if(inExchange){setExchangeSelected(p=>p.includes(tile.id)?p.filter(x=>x!==tile.id):(p.length>=3?p:[...p,tile.id]));return;} if(canDiscard) run(()=>runtime.discard(tile.id)); };
 
   return <SafeAreaView style={styles.page}><ScrollView contentContainerStyle={styles.wrap}><View style={styles.card}>

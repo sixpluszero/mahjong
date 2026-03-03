@@ -129,6 +129,9 @@ function createPreviewRuntime(onState: RuntimeOptions['onState']): LobbyRuntime 
 
 function createLiveRuntime(wsUrl: string, onState: RuntimeOptions['onState']): LobbyRuntime {
   let ws: WebSocket | null = null;
+  let acknowledgedName = '';
+  let pendingName = '';
+
   const model: any = {
     roomState: null,
     gameState: null,
@@ -138,6 +141,23 @@ function createLiveRuntime(wsUrl: string, onState: RuntimeOptions['onState']): L
 
   function isOpen() {
     return !!ws && ws.readyState === WebSocket.OPEN;
+  }
+
+  function send(type: string, payload: unknown) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return false;
+    ws.send(JSON.stringify({ type, payload }));
+    return true;
+  }
+
+  function ensureHello() {
+    if (!pendingName) {
+      onState({ statusKey: 'error', statusArgs: { detail: 'MISSING_NAME' } });
+      return false;
+    }
+    if (acknowledgedName === pendingName) {
+      return true;
+    }
+    return send('hello', { name: pendingName });
   }
 
   return {
@@ -150,6 +170,9 @@ function createLiveRuntime(wsUrl: string, onState: RuntimeOptions['onState']): L
 
       ws.addEventListener('open', () => {
         onState({ connected: true, statusKey: 'connected' });
+        if (pendingName) {
+          send('hello', { name: pendingName });
+        }
       });
 
       ws.addEventListener('close', () => {
@@ -161,6 +184,15 @@ function createLiveRuntime(wsUrl: string, onState: RuntimeOptions['onState']): L
           const message = JSON.parse(String(event.data));
           const { patch = {} } = reduceServerMessage(model, message);
           Object.assign(model, patch);
+
+          if (message.type === 'hello_ack') {
+            acknowledgedName = message.payload?.name || pendingName;
+            onState({ statusKey: 'room_synced', statusArgs: { players: model.roomState?.players?.length || 0 } });
+          }
+
+          if (message.type === 'error') {
+            onState({ statusKey: 'error', statusArgs: { detail: message.payload?.code || 'SERVER_ERROR' } });
+          }
 
           if (message.type === 'room_state') {
             const players = (message.payload?.players || [])
@@ -199,7 +231,7 @@ function createLiveRuntime(wsUrl: string, onState: RuntimeOptions['onState']): L
             });
           }
         } catch {
-          onState({ statusKey: 'error' });
+          onState({ statusKey: 'error', statusArgs: { detail: 'PARSE_ERROR' } });
         }
       });
     },
@@ -210,27 +242,41 @@ function createLiveRuntime(wsUrl: string, onState: RuntimeOptions['onState']): L
       } catch {}
     },
     hello(name: string) {
-      return send(ws, 'hello', { name }, isOpen());
+      pendingName = String(name || '').trim();
+      if (!pendingName) {
+        onState({ statusKey: 'error', statusArgs: { detail: 'MISSING_NAME' } });
+        return false;
+      }
+      const ok = send('hello', { name: pendingName });
+      if (!ok) {
+        onState({ statusKey: 'error', statusArgs: { detail: 'NOT_CONNECTED' } });
+      }
+      return ok;
     },
     createRoom() {
-      return send(ws, 'create_room', {}, isOpen());
+      if (!ensureHello()) return false;
+      const ok = send('create_room', {});
+      if (!ok) onState({ statusKey: 'error', statusArgs: { detail: 'NOT_CONNECTED' } });
+      return ok;
     },
     joinRoom(roomId: string) {
-      return send(ws, 'join_room', { roomId: roomId.toUpperCase() }, isOpen());
+      if (!ensureHello()) return false;
+      const normalized = roomId.toUpperCase();
+      const ok = send('join_room', { roomId: normalized });
+      if (!ok) onState({ statusKey: 'error', statusArgs: { detail: 'NOT_CONNECTED' } });
+      return ok;
     },
     addBot() {
-      return send(ws, 'add_bot', {}, isOpen());
+      const ok = send('add_bot', {});
+      if (!ok) onState({ statusKey: 'error', statusArgs: { detail: 'NOT_CONNECTED' } });
+      return ok;
     },
     setReady() {
-      return send(ws, 'set_ready', { ready: true }, isOpen());
+      const ok = send('set_ready', { ready: true });
+      if (!ok) onState({ statusKey: 'error', statusArgs: { detail: 'NOT_CONNECTED' } });
+      return ok;
     }
   };
-}
-
-function send(ws: WebSocket | null, type: string, payload: unknown, canSend: boolean) {
-  if (!ws || !canSend) return false;
-  ws.send(JSON.stringify({ type, payload }));
-  return true;
 }
 
 function suitPrefix(suit: string) {

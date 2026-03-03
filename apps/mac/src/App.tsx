@@ -14,7 +14,7 @@ const I18N: Record<Lang, Record<string, string>> = {
     actionBusy: 'Processing...', cannotSend: 'Cannot send action: not connected',
     status_idle: 'Idle', status_preview_connected: 'Preview connected', status_preview_disconnected: 'Preview disconnected',
     status_preview_hello: 'Hello {name} (preview mode)', status_preview_room_created: 'Room created (preview)', status_preview_room_joined: 'Join room {roomId} (preview)',
-    status_connecting: 'Connecting: {wsUrl}', status_connected: 'Connected', status_disconnected: 'Disconnected', status_room_synced: 'Room synced ({players} players)', status_error: 'Message handling error'
+    status_connecting: 'Connecting: {wsUrl}', status_connected: 'Connected', status_disconnected: 'Disconnected', status_room_synced: 'Room synced ({players} players)', status_error: 'Error: {detail}'
   },
   zh: {
     title: '四川麻将 Mac 客户端', subtitle: '大厅 + 牌桌预览', mode: '模式', preview: '预览', live: '在线', language: '语言', wsUrl: 'WS 地址',
@@ -25,7 +25,7 @@ const I18N: Record<Lang, Record<string, string>> = {
     actionBusy: '处理中...', cannotSend: '当前未连接，无法发送操作',
     status_idle: '空闲', status_preview_connected: '预览模式已连接', status_preview_disconnected: '预览模式已断开',
     status_preview_hello: '你好，{name}（预览模式）', status_preview_room_created: '已创建房间（预览）', status_preview_room_joined: '已加入房间 {roomId}（预览）',
-    status_connecting: '正在连接：{wsUrl}', status_connected: '已连接', status_disconnected: '已断开', status_room_synced: '房间同步完成（{players} 人）', status_error: '消息处理异常'
+    status_connecting: '正在连接：{wsUrl}', status_connected: '已连接', status_disconnected: '已断开', status_room_synced: '房间同步完成（{players} 人）', status_error: '错误：{detail}'
   }
 };
 

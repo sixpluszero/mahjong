@@ -107,9 +107,9 @@ export default function App(): JSX.Element {
             </View>
 
             <View style={styles.tableSurface}>
-              <SeatPanel player={seatMap.top} rematchReadySeats={state.rematchReadySeats} />
+              <SeatPanel player={seatMap.top} rematchReadySeats={state.rematchReadySeats} isTurn={state.turnSeat === seatMap.top?.seat} />
               <View style={styles.middleRow}>
-                <SeatPanel player={seatMap.left} rematchReadySeats={state.rematchReadySeats} vertical />
+                <SeatPanel player={seatMap.left} rematchReadySeats={state.rematchReadySeats} vertical isTurn={state.turnSeat === seatMap.left?.seat} />
                 <CenterHUD
                   turnSeat={state.turnSeat}
                   roomPhase={state.roomPhase}
@@ -118,9 +118,12 @@ export default function App(): JSX.Element {
                   statusKey={state.statusKey}
                   statusDetail={state.statusArgs?.detail}
                 />
-                <SeatPanel player={seatMap.right} rematchReadySeats={state.rematchReadySeats} vertical />
+                <SeatPanel player={seatMap.right} rematchReadySeats={state.rematchReadySeats} vertical isTurn={state.turnSeat === seatMap.right?.seat} />
               </View>
               <DiscardRivers discardsBySeat={discardsBySeat} mySeat={mySeat} />
+              <View style={styles.bottomSeatWrap}>
+                <SeatPanel player={seatMap.bottom} rematchReadySeats={state.rematchReadySeats} isTurn={state.turnSeat === seatMap.bottom?.seat} />
+              </View>
             </View>
 
             {actionOpen ? (
@@ -166,11 +169,11 @@ export default function App(): JSX.Element {
   );
 }
 
-function SeatPanel({ player, rematchReadySeats, vertical = false }: { player?: LobbyPlayer; rematchReadySeats: number[]; vertical?: boolean }) {
+function SeatPanel({ player, rematchReadySeats, vertical = false, isTurn = false }: { player?: LobbyPlayer; rematchReadySeats: number[]; vertical?: boolean; isTurn?: boolean }) {
   if (!player) return <View style={[styles.seatPanel, vertical && styles.seatPanelVertical]}><Text style={styles.meta}>-</Text></View>;
   return (
-    <View style={[styles.seatPanel, vertical && styles.seatPanelVertical]}>
-      <Text style={styles.seatName}>S{player.seat} {player.name}</Text>
+    <View style={[styles.seatPanel, vertical && styles.seatPanelVertical, isTurn && styles.seatPanelTurn]}>
+      <Text style={[styles.seatName, isTurn && styles.seatNameTurn]}>S{player.seat} {player.name}{isTurn ? ' ●' : ''}</Text>
       <Text style={styles.meta}>Score: {player.totalScore} {rematchReadySeats.includes(player.seat) ? '✅' : ''}</Text>
       <View style={styles.meldGroupWrap}>
         {(player.melds || []).slice(0, 4).map((m, i) => <MeldGroupView key={`${player.seat}-${i}`} meld={m} />)}
@@ -253,6 +256,8 @@ const styles = StyleSheet.create({
 
   seatPanel: { minWidth: 200, minHeight: 66, borderWidth: 1, borderColor: '#1f2937', borderRadius: 8, backgroundColor: '#0f172a', padding: 8, alignSelf: 'center' },
   seatPanelVertical: { minWidth: 130, width: 130 },
+  seatPanelTurn: { borderColor: '#fbbf24', shadowColor: '#fbbf24', shadowOpacity: 0.45, shadowRadius: 8 },
+  seatNameTurn: { color: '#fde68a' },
   seatName: { color: '#f8fafc', fontWeight: '700' },
   meldGroupWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 },
   meldGroup: { borderWidth: 1, borderColor: '#334155', borderRadius: 6, padding: 3, backgroundColor: '#0b1220' },
@@ -263,6 +268,7 @@ const styles = StyleSheet.create({
   centerTitle: { color: '#f8fafc', fontWeight: '700' },
 
   riversWrap: { marginTop: 8, borderWidth: 1, borderColor: '#14532d', borderRadius: 8, padding: 8, backgroundColor: '#064e3b' },
+  bottomSeatWrap: { marginTop: 8, alignItems: 'center' },
   riverRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, minHeight: 30, justifyContent: 'center' },
   riverMiddle: { flexDirection: 'row', justifyContent: 'space-between', marginVertical: 6 },
   riverCol: { width: '48%', minHeight: 30, flexDirection: 'row', flexWrap: 'wrap', gap: 4 },

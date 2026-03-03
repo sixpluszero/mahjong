@@ -20,6 +20,12 @@ Quick start:
   - `npm run dev:client`
   - `ROOM_ID=<room_id_from_logs> npm run dev:client`
 
+## One-command setup scripts
+- Server-only setup (no RN/macOS dependencies):
+  - `./scripts/setup-server.sh`
+- Mac client setup (Xcode + pods + host bootstrap):
+  - `./apps/mac/scripts/setup-mac-client.sh`
+
 ## E2E (Playwright)
 - Install deps (once): `npm install`
 - Install Playwright browser (once): `npx playwright install chromium`

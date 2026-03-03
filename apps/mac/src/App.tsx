@@ -148,7 +148,23 @@ function SeatPanel({ player, rematchReadySeats, vertical = false }: { player?: L
     <View style={[styles.seatPanel, vertical && styles.seatPanelVertical]}>
       <Text style={styles.seatName}>S{player.seat} {player.name}</Text>
       <Text style={styles.meta}>Score: {player.totalScore} {rematchReadySeats.includes(player.seat) ? '✅' : ''}</Text>
-      <View style={styles.meldRow}>{(player.melds || []).slice(0, 4).map((m, i) => <MiniTile key={`${player.seat}-${i}`} code={`${suitPrefix(m.tile.suit)}${m.tile.rank}`} />)}</View>
+      <View style={styles.meldGroupWrap}>
+        {(player.melds || []).slice(0, 4).map((m, i) => <MeldGroupView key={`${player.seat}-${i}`} meld={m} />)}
+      </View>
+    </View>
+  );
+}
+
+function MeldGroupView({ meld }: { meld: Meld }) {
+  const baseCode = `${suitPrefix(meld.tile.suit)}${meld.tile.rank}`;
+  const count = meld.type === 'gang' ? 4 : 3;
+  const tiles = Array.from({ length: count }, () => baseCode);
+  const badge = meld.type === 'peng' ? '碰' : meld.type === 'gang' ? '杠' : meld.type === 'chi' ? '吃' : meld.type;
+
+  return (
+    <View style={styles.meldGroup}>
+      <View style={styles.meldTilesRow}>{tiles.map((c, i) => <MiniTile key={`${c}-${i}`} code={c} />)}</View>
+      <Text style={styles.meldBadge}>{badge}</Text>
     </View>
   );
 }
@@ -214,7 +230,10 @@ const styles = StyleSheet.create({
   seatPanel: { minWidth: 200, minHeight: 66, borderWidth: 1, borderColor: '#1f2937', borderRadius: 8, backgroundColor: '#0f172a', padding: 8, alignSelf: 'center' },
   seatPanelVertical: { minWidth: 130, width: 130 },
   seatName: { color: '#f8fafc', fontWeight: '700' },
-  meldRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 },
+  meldGroupWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 },
+  meldGroup: { borderWidth: 1, borderColor: '#334155', borderRadius: 6, padding: 3, backgroundColor: '#0b1220' },
+  meldTilesRow: { flexDirection: 'row', gap: 2 },
+  meldBadge: { color: '#94a3b8', fontSize: 10, textAlign: 'center', marginTop: 2 },
 
   centerHud: { width: 280, borderWidth: 1, borderColor: '#1f2937', borderRadius: 8, backgroundColor: '#111827', padding: 8, alignItems: 'center' },
   centerTitle: { color: '#f8fafc', fontWeight: '700' },

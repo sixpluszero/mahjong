@@ -320,7 +320,7 @@ function Btn({ text, onPress, disabled = false }: { text: string; onPress: () =>
 function Tile({ code, small = false, selected = false, active = false, highlighted = false, onPress }: { code: string; small?: boolean; selected?: boolean; active?: boolean; highlighted?: boolean; onPress?: () => void }) {
   const pure = code.includes('@') ? code.split('@')[0] : code;
   const suit = pure[0]; const rank = Number(pure.slice(1)); const { label, color } = meta(suit);
-  return <Pressable onPress={onPress} disabled={!onPress} style={[styles.tile, small && styles.tileSmall, selected && styles.tileSel, highlighted && styles.tileHighlight, !active && styles.tileInactive]}><Text style={[styles.corner, { color }]}>{label}</Text><Text style={[styles.rank, { color }]}>{rank}</Text><Text style={[styles.corner, { color, alignSelf: 'flex-end' }]}>{label}</Text></Pressable>;
+  return <Pressable onPress={onPress} disabled={!onPress} style={[styles.tile, small && styles.tileSmall, selected && styles.tileSel, highlighted && styles.tileHighlight, !active && styles.tileInactive]}><Text style={[styles.corner, { color }]}>{label}</Text><Text style={[styles.rank, { color }]}>{rank}</Text><Text style={[styles.corner, { color, alignSelf: 'flex-end' }]}></Text></Pressable>;
 }
 function MiniTile({ code, highlighted = false }: { code: string; highlighted?: boolean }) { return <Tile code={code} small active highlighted={highlighted} />; }
 function meta(s: string) { if (s === 'w') return { label: '萬', color: '#dc2626' }; if (s === 't') return { label: '条', color: '#16a34a' }; return { label: '筒', color: '#2563eb' }; }

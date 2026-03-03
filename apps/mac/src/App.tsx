@@ -66,6 +66,8 @@ export default function App(): JSX.Element {
 
   const discardsBySeat = groupDiscardsBySeat(state.discards);
   const lastDiscard = state.discards.length > 0 ? state.discards[state.discards.length - 1] : null;
+  const lastDiscardPlayerName = lastDiscard ? (findPlayerBySeat(state.players, lastDiscard.seat)?.name || `S${lastDiscard.seat}`) : '';
+  const reactionTarget = state.pendingReaction ? { seat: state.pendingReaction.fromSeat, tileCode: state.pendingReaction.tileCode } : null;
 
   useEffect(() => {
     if (!lastDiscard) return;
@@ -138,12 +140,14 @@ export default function App(): JSX.Element {
                   maxRounds={state.maxRounds}
                   statusKey={state.statusKey}
                   statusDetail={state.statusArgs?.detail}
+                  remainingTiles={state.remainingTiles}
                   lastDiscard={lastDiscard}
+                  lastDiscardPlayerName={lastDiscardPlayerName}
                   flash={lastDiscardFlash}
                 />
                 <SeatPanel player={seatMap.right} rematchReadySeats={state.rematchReadySeats} vertical isTurn={state.turnSeat === seatMap.right?.seat} />
               </View>
-              <DiscardRivers discardsBySeat={discardsBySeat} mySeat={mySeat} />
+              <DiscardRivers discardsBySeat={discardsBySeat} mySeat={mySeat} reactionTarget={reactionTarget} />
               <View style={styles.bottomSeatWrap}>
                 <SeatPanel player={seatMap.bottom} rematchReadySeats={state.rematchReadySeats} isTurn={state.turnSeat === seatMap.bottom?.seat} />
               </View>
@@ -166,7 +170,6 @@ export default function App(): JSX.Element {
                 ) : (
                   <View style={styles.actionBar}>
                     <Btn text={t(lang, 'selfHu')} disabled={!(canDiscard && state.canSelfHu)} onPress={() => runAction('自摸胡', () => runtime.selfHu())} />
-                    <Btn text={t(lang, 'reactGang')} disabled={!canDiscard} onPress={() => false} />
                     {!canDiscard ? <Text style={styles.meta}>当前不可操作：未到你回合</Text> : null}
                   </View>
                 )}
@@ -235,49 +238,55 @@ function MeldGroupView({ meld }: { meld: Meld }) {
   );
 }
 
-function CenterHUD({ turnSeat, roomPhase, roundNo, maxRounds, statusKey, statusDetail, lastDiscard, flash }: { turnSeat?: number; roomPhase?: string; roundNo?: number; maxRounds?: number; statusKey?: string; statusDetail?: string | number; lastDiscard?: { seat: number; tileCode: string } | null; flash?: boolean }) {
+function CenterHUD({ turnSeat, roomPhase, roundNo, maxRounds, statusKey, statusDetail, remainingTiles, lastDiscard, lastDiscardPlayerName, flash }: { turnSeat?: number; roomPhase?: string; roundNo?: number; maxRounds?: number; statusKey?: string; statusDetail?: string | number; remainingTiles?: number; lastDiscard?: { seat: number; tileCode: string } | null; lastDiscardPlayerName?: string; flash?: boolean }) {
   return (
     <View style={styles.centerHud}>
       <Text style={styles.centerTitle}>局况</Text>
       <Text style={styles.meta}>Turn: {turnSeat ?? '-'}</Text>
       <Text style={styles.meta}>Room: {roomPhase || '-'}</Text>
       <Text style={styles.meta}>Round: {roundNo ?? 0}/{maxRounds ?? 0}</Text>
+      <Text style={styles.meta}>剩余牌: {remainingTiles ?? '-'}</Text>
       <Text style={styles.meta}>State: {statusKey}{statusDetail ? ` (${statusDetail})` : ''}</Text>
       {lastDiscard ? (
         <View style={[styles.lastDiscardBadge, flash && styles.lastDiscardBadgeFlash]}>
-          <Text style={styles.lastDiscardText}>S{lastDiscard.seat} 打出 {lastDiscard.tileCode}</Text>
+          <Text style={styles.lastDiscardText}>{lastDiscardPlayerName || `S${lastDiscard.seat}`} 打出 {tileCodeToZh(lastDiscard.tileCode)}</Text>
         </View>
       ) : null}
     </View>
   );
 }
 
-function DiscardRivers({ discardsBySeat, mySeat }: { discardsBySeat: Record<number, string[]>; mySeat: number }) {
+function DiscardRivers({ discardsBySeat, mySeat, reactionTarget }: { discardsBySeat: Record<number, string[]>; mySeat: number; reactionTarget?: { seat: number; tileCode: string } | null }) {
   const topSeat = (mySeat + 2) % 4;
   const leftSeat = (mySeat + 1) % 4;
   const rightSeat = (mySeat + 3) % 4;
   return (
     <View style={styles.riversWrap}>
-      <RiverGrid tiles={discardsBySeat[topSeat] || []} />
+      <RiverGrid tiles={discardsBySeat[topSeat] || []} highlightCode={reactionTarget?.seat === topSeat ? reactionTarget.tileCode : undefined} />
       <View style={styles.riverMiddle}>
-        <RiverGrid tiles={discardsBySeat[leftSeat] || []} compact />
-        <RiverGrid tiles={discardsBySeat[rightSeat] || []} compact />
+        <RiverGrid tiles={discardsBySeat[leftSeat] || []} compact highlightCode={reactionTarget?.seat === leftSeat ? reactionTarget.tileCode : undefined} />
+        <RiverGrid tiles={discardsBySeat[rightSeat] || []} compact highlightCode={reactionTarget?.seat === rightSeat ? reactionTarget.tileCode : undefined} />
       </View>
-      <RiverGrid tiles={discardsBySeat[mySeat] || []} />
+      <RiverGrid tiles={discardsBySeat[mySeat] || []} highlightCode={reactionTarget?.seat === mySeat ? reactionTarget.tileCode : undefined} />
     </View>
   );
 }
 
-function RiverGrid({ tiles, compact = false }: { tiles: string[]; compact?: boolean }) {
+function RiverGrid({ tiles, compact = false, highlightCode }: { tiles: string[]; compact?: boolean; highlightCode?: string }) {
   const perRow = compact ? 5 : 6;
   const rows = Math.max(2, Math.ceil(tiles.length / perRow));
   const padded = [...tiles];
   while (padded.length < rows * perRow) padded.push('');
+  const highlightIndex = highlightCode ? tiles.lastIndexOf(highlightCode) : -1;
   return (
     <View style={[styles.riverGrid, compact && styles.riverGridCompact]}>
       {Array.from({ length: rows }).map((_, r) => (
         <View key={r} style={styles.riverRow}>
-          {padded.slice(r * perRow, (r + 1) * perRow).map((c, i) => c ? <MiniTile key={`${r}-${i}-${c}`} code={c} /> : <View key={`${r}-${i}-x`} style={styles.riverPlaceholder} />)}
+          {padded.slice(r * perRow, (r + 1) * perRow).map((c, i) => {
+            const index = r * perRow + i;
+            if (!c) return <View key={`${r}-${i}-x`} style={styles.riverPlaceholder} />;
+            return <MiniTile key={`${r}-${i}-${c}`} code={c} highlighted={index === highlightIndex} />;
+          })}
         </View>
       ))}
     </View>
@@ -292,13 +301,22 @@ function findPlayerBySeat(players: LobbyPlayer[], seat: number) { return players
 function groupDiscardsBySeat(discards: { seat: number; tileCode: string }[]) { const map: Record<number, string[]> = {}; for (const d of discards) { if (!map[d.seat]) map[d.seat] = []; map[d.seat].push(d.tileCode); } return map; }
 
 function Btn({ text, onPress, disabled = false }: { text: string; onPress: () => void; disabled?: boolean }) { return <Pressable style={[styles.btn, disabled && styles.btnDisabled]} disabled={disabled} onPress={onPress}><Text style={[styles.btnText, disabled && styles.btnTextDisabled]}>{text}</Text></Pressable>; }
-function Tile({ code, small = false, selected = false, active = false, onPress }: { code: string; small?: boolean; selected?: boolean; active?: boolean; onPress?: () => void }) {
+function Tile({ code, small = false, selected = false, active = false, highlighted = false, onPress }: { code: string; small?: boolean; selected?: boolean; active?: boolean; highlighted?: boolean; onPress?: () => void }) {
   const pure = code.includes('@') ? code.split('@')[0] : code;
   const suit = pure[0]; const rank = Number(pure.slice(1)); const { label, color } = meta(suit);
-  return <Pressable onPress={onPress} disabled={!onPress} style={[styles.tile, small && styles.tileSmall, selected && styles.tileSel, !active && styles.tileInactive]}><Text style={[styles.corner, { color }]}>{label}</Text><Text style={[styles.rank, { color }]}>{rank}</Text><Text style={[styles.corner, { color, alignSelf: 'flex-end' }]}>{label}</Text></Pressable>;
+  return <Pressable onPress={onPress} disabled={!onPress} style={[styles.tile, small && styles.tileSmall, selected && styles.tileSel, highlighted && styles.tileHighlight, !active && styles.tileInactive]}><Text style={[styles.corner, { color }]}>{label}</Text><Text style={[styles.rank, { color }]}>{rank}</Text><Text style={[styles.corner, { color, alignSelf: 'flex-end' }]}>{label}</Text></Pressable>;
 }
-function MiniTile({ code }: { code: string }) { return <Tile code={code} small active />; }
+function MiniTile({ code, highlighted = false }: { code: string; highlighted?: boolean }) { return <Tile code={code} small active highlighted={highlighted} />; }
 function meta(s: string) { if (s === 'w') return { label: '萬', color: '#dc2626' }; if (s === 't') return { label: '条', color: '#16a34a' }; return { label: '筒', color: '#2563eb' }; }
+function tileCodeToZh(code: string) {
+  const pure = code.includes('@') ? code.split('@')[0] : code;
+  const suit = pure[0];
+  const rank = Number(pure.slice(1));
+  if (suit === 'w') return `${rank}万`;
+  if (suit === 't') return `${rank}条`;
+  if (suit === 'b') return `${rank}筒`;
+  return code;
+}
 
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: '#0f172a' },
@@ -368,6 +386,7 @@ const styles = StyleSheet.create({
   tile: { width: 38, height: 58, borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, backgroundColor: '#fff', padding: 4, justifyContent: 'space-between' },
   tileSmall: { width: 24, height: 34, borderRadius: 5, padding: 2 },
   tileSel: { borderColor: '#f59e0b', transform: [{ translateY: -2 }] },
+  tileHighlight: { borderColor: '#fde047', borderWidth: 2, shadowColor: '#fde047', shadowOpacity: 0.5, shadowRadius: 4 },
   tileInactive: { opacity: 0.72, backgroundColor: '#f3f4f6' },
   corner: { fontSize: 9, fontWeight: '700' },
   rank: { fontSize: 20, fontWeight: '800', textAlign: 'center' }

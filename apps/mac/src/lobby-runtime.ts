@@ -10,7 +10,7 @@ export type PendingReaction = { fromSeat: number; canHu: boolean; canGang: boole
 export type LobbyViewState = {
   name: string; roomId: string; players: LobbyPlayer[]; connected: boolean;
   statusKey: LobbyStatusKey; statusArgs?: Record<string, string | number>;
-  roomPhase?: string; roundNo?: number; maxRounds?: number;
+  roomPhase?: string; roundNo?: number; maxRounds?: number; remainingTiles?: number;
   gamePhase?: string; turnSeat?: number; yourSeat?: number;
   yourHandTiles: HandTile[]; yourMelds: Meld[]; canSelfHu: boolean; pendingReaction: PendingReaction;
   discards: TableDiscard[]; rematchReadySeats: number[]; matchFinished: boolean;
@@ -97,9 +97,9 @@ function createLiveRuntime(wsUrl: string, onState: RuntimeOptions['onState']): L
           if (message.type === 'game_state') {
             const you = message.payload?.you || {}; const gs = message.payload?.state || {};
             const yourHandTiles = (you.hand || []).map((t: any) => ({ id: t.id, code: `${suitPrefix(t.suit)}${t.rank}`, suit: t.suit, rank: t.rank }));
-            const discards = (gs.discardPool || []).slice(-16).map((d: any) => ({ seat: d.seat, tileCode: `${suitPrefix(d.tile.suit)}${d.tile.rank}` }));
+            const discards = (gs.discardPool || []).map((d: any) => ({ seat: d.seat, tileCode: `${suitPrefix(d.tile.suit)}${d.tile.rank}` }));
             const pending = message.payload?.pendingReaction ? { fromSeat: message.payload.pendingReaction.fromSeat, canHu: !!message.payload.pendingReaction.canHu, canGang: !!message.payload.pendingReaction.canGang, canPeng: !!message.payload.pendingReaction.canPeng, tileCode: `${suitPrefix(message.payload.pendingReaction.tile.suit)}${message.payload.pendingReaction.tile.rank}` } : null;
-            onState({ players: buildPlayers(model.roomState?.players || [], gs.players || []), gamePhase: gs.phase, turnSeat: gs.turnSeat, yourSeat: you.seat, yourHandTiles, discards, canSelfHu: !!you.canSelfHu, yourMelds: you.melds || [], pendingReaction: pending });
+            onState({ players: buildPlayers(model.roomState?.players || [], gs.players || []), gamePhase: gs.phase, turnSeat: gs.turnSeat, yourSeat: you.seat, yourHandTiles, discards, remainingTiles: gs.remainingTiles ?? gs.wallRemaining ?? gs.tilesLeft ?? gs.leftTileCount ?? undefined, canSelfHu: !!you.canSelfHu, yourMelds: you.melds || [], pendingReaction: pending });
           }
         } catch { onState({ statusKey: 'error', statusArgs: { detail: 'PARSE_ERROR' } }); }
       });

@@ -133,7 +133,7 @@ export default function App(): JSX.Element {
             <View style={styles.tableSurface}>
               <SeatPanel player={seatMap.top} rematchReadySeats={state.rematchReadySeats} isTurn={state.turnSeat === seatMap.top?.seat} isSelf={false} />
               <View style={styles.middleRow}>
-                <SeatPanel player={seatMap.left} rematchReadySeats={state.rematchReadySeats} vertical isTurn={state.turnSeat === seatMap.left?.seat} isSelf={false} />
+                <SeatPanel player={seatMap.left} rematchReadySeats={state.rematchReadySeats} vertical side="left" isTurn={state.turnSeat === seatMap.left?.seat} isSelf={false} />
                 <CenterHUD
                   turnSeat={state.turnSeat}
                   roomPhase={state.roomPhase}
@@ -146,7 +146,7 @@ export default function App(): JSX.Element {
                   lastDiscardPlayerName={lastDiscardPlayerName}
                   flash={lastDiscardFlash}
                 />
-                <SeatPanel player={seatMap.right} rematchReadySeats={state.rematchReadySeats} vertical isTurn={state.turnSeat === seatMap.right?.seat} isSelf={false} />
+                <SeatPanel player={seatMap.right} rematchReadySeats={state.rematchReadySeats} vertical side="right" isTurn={state.turnSeat === seatMap.right?.seat} isSelf={false} />
               </View>
               <DiscardRivers discardsBySeat={discardsBySeat} mySeat={mySeat} reactionTarget={reactionTarget} />
               <View style={styles.bottomSeatWrap}>
@@ -211,13 +211,13 @@ export default function App(): JSX.Element {
   );
 }
 
-function SeatPanel({ player, rematchReadySeats, vertical = false, isTurn = false, isSelf = false }: { player?: LobbyPlayer; rematchReadySeats: number[]; vertical?: boolean; isTurn?: boolean; isSelf?: boolean }) {
-  if (!player) return <View style={[styles.seatPanel, vertical && styles.seatPanelVertical]}><Text style={styles.meta}>-</Text></View>;
+function SeatPanel({ player, rematchReadySeats, vertical = false, side, isTurn = false, isSelf = false }: { player?: LobbyPlayer; rematchReadySeats: number[]; vertical?: boolean; side?: 'left' | 'right'; isTurn?: boolean; isSelf?: boolean }) {
+  if (!player) return <View style={[styles.seatPanel, vertical && styles.seatPanelVertical, side === 'left' && styles.seatPanelLeft, side === 'right' && styles.seatPanelRight]}><Text style={styles.meta}>-</Text></View>;
   return (
-    <View style={[styles.seatPanel, vertical && styles.seatPanelVertical, isTurn && styles.seatPanelTurn]}>
+    <View style={[styles.seatPanel, vertical && styles.seatPanelVertical, side === 'left' && styles.seatPanelLeft, side === 'right' && styles.seatPanelRight, isTurn && styles.seatPanelTurn]}>
       <Text style={[styles.seatName, isTurn && styles.seatNameTurn]}>S{player.seat} {player.name}{isTurn ? ' ●' : ''}</Text>
       <Text style={styles.meta}>分数: {player.totalScore} {rematchReadySeats.includes(player.seat) ? '✅已准备' : ''}</Text>
-      <Text style={styles.meta}>{player.isBot ? '机器人' : '真人'} · {player.online ? '在线' : '离线'} · 定缺: {lackSuitToZh(player.lackSuit)}</Text>
+      <Text style={styles.meta}>定缺: {lackSuitToZh(player.lackSuit)} · {player.online ? '在线' : '离线'}</Text>
       <View style={styles.meldGroupWrap}>
         {(player.melds || [])
           .filter((m) => isMeldVisible(m, isSelf))
@@ -369,7 +369,9 @@ const styles = StyleSheet.create({
   middleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 8 },
 
   seatPanel: { minWidth: 200, minHeight: 66, borderWidth: 1, borderColor: '#1f2937', borderRadius: 8, backgroundColor: '#0f172a', padding: 8, alignSelf: 'center' },
-  seatPanelVertical: { minWidth: 130, width: 130 },
+  seatPanelVertical: { minWidth: 156, width: 156 },
+  seatPanelLeft: { marginTop: 42, alignSelf: 'flex-start' },
+  seatPanelRight: { marginTop: 42, alignSelf: 'flex-end' },
   seatPanelTurn: { borderColor: '#fbbf24', shadowColor: '#fbbf24', shadowOpacity: 0.45, shadowRadius: 8 },
   seatNameTurn: { color: '#fde68a' },
   seatName: { color: '#f8fafc', fontWeight: '700' },

@@ -217,7 +217,7 @@ function SeatPanel({ player, rematchReadySeats, vertical = false, isTurn = false
     <View style={[styles.seatPanel, vertical && styles.seatPanelVertical, isTurn && styles.seatPanelTurn]}>
       <Text style={[styles.seatName, isTurn && styles.seatNameTurn]}>S{player.seat} {player.name}{isTurn ? ' ●' : ''}</Text>
       <Text style={styles.meta}>分数: {player.totalScore} {rematchReadySeats.includes(player.seat) ? '✅已准备' : ''}</Text>
-      <Text style={styles.meta}>{player.isBot ? '机器人' : '真人'} · {player.online ? '在线' : '离线'}</Text>
+      <Text style={styles.meta}>{player.isBot ? '机器人' : '真人'} · {player.online ? '在线' : '离线'} · 定缺: {lackSuitToZh(player.lackSuit)}</Text>
       <View style={styles.meldGroupWrap}>
         {(player.melds || []).slice(0, 4).map((m, i) => <MeldGroupView key={`${player.seat}-${i}`} meld={m} />)}
       </View>
@@ -323,6 +323,13 @@ function Tile({ code, small = false, selected = false, active = false, highlight
 }
 function MiniTile({ code, highlighted = false }: { code: string; highlighted?: boolean }) { return <Tile code={code} small active highlighted={highlighted} />; }
 function meta(s: string) { if (s === 'w') return { label: '萬', color: '#dc2626' }; if (s === 't') return { label: '条', color: '#16a34a' }; return { label: '筒', color: '#2563eb' }; }
+function lackSuitToZh(s?: 'wan'|'tiao'|'tong'|null) {
+  if (s === 'wan') return '万';
+  if (s === 'tiao') return '条';
+  if (s === 'tong') return '筒';
+  return '未定';
+}
+
 function tileCodeToZh(code: string) {
   const pure = code.includes('@') ? code.split('@')[0] : code;
   const suit = pure[0];

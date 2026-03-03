@@ -40,11 +40,11 @@ export type LobbyViewState = {
 export type LobbyRuntime = {
   connect: () => void;
   disconnect: () => void;
-  hello: (name: string) => void;
-  createRoom: () => void;
-  joinRoom: (roomId: string) => void;
-  addBot: () => void;
-  setReady: () => void;
+  hello: (name: string) => boolean;
+  createRoom: () => boolean;
+  joinRoom: (roomId: string) => boolean;
+  addBot: () => boolean;
+  setReady: () => boolean;
 };
 
 export type RuntimeOptions = {
@@ -70,6 +70,7 @@ function createPreviewRuntime(onState: RuntimeOptions['onState']): LobbyRuntime 
     },
     hello(name: string) {
       onState({ name, statusKey: 'preview_hello', statusArgs: { name: name || 'Player' } });
+      return true;
     },
     createRoom() {
       onState({
@@ -80,9 +81,11 @@ function createPreviewRuntime(onState: RuntimeOptions['onState']): LobbyRuntime 
         players: [{ name: 'You', isBot: false, ready: false, online: true }],
         statusKey: 'preview_room_created'
       });
+      return true;
     },
     joinRoom(roomId: string) {
       onState({ roomId: roomId.toUpperCase(), statusKey: 'preview_room_joined', statusArgs: { roomId: roomId.toUpperCase() } });
+      return true;
     },
     addBot() {
       onState({
@@ -93,6 +96,7 @@ function createPreviewRuntime(onState: RuntimeOptions['onState']): LobbyRuntime 
         statusKey: 'room_synced',
         statusArgs: { players: 2 }
       });
+      return true;
     },
     setReady() {
       onState({
@@ -103,6 +107,7 @@ function createPreviewRuntime(onState: RuntimeOptions['onState']): LobbyRuntime 
         statusKey: 'room_synced',
         statusArgs: { players: 2 }
       });
+      return true;
     }
   };
 }
@@ -115,6 +120,10 @@ function createLiveRuntime(wsUrl: string, onState: RuntimeOptions['onState']): L
     roomId: '',
     activeRooms: []
   };
+
+  function isOpen() {
+    return !!ws && ws.readyState === WebSocket.OPEN;
+  }
 
   return {
     connect() {
@@ -170,24 +179,25 @@ function createLiveRuntime(wsUrl: string, onState: RuntimeOptions['onState']): L
       } catch {}
     },
     hello(name: string) {
-      send(ws, 'hello', { name });
+      return send(ws, 'hello', { name }, isOpen());
     },
     createRoom() {
-      send(ws, 'create_room', {});
+      return send(ws, 'create_room', {}, isOpen());
     },
     joinRoom(roomId: string) {
-      send(ws, 'join_room', { roomId: roomId.toUpperCase() });
+      return send(ws, 'join_room', { roomId: roomId.toUpperCase() }, isOpen());
     },
     addBot() {
-      send(ws, 'add_bot', {});
+      return send(ws, 'add_bot', {}, isOpen());
     },
     setReady() {
-      send(ws, 'set_ready', { ready: true });
+      return send(ws, 'set_ready', { ready: true }, isOpen());
     }
   };
 }
 
-function send(ws: WebSocket | null, type: string, payload: unknown) {
-  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+function send(ws: WebSocket | null, type: string, payload: unknown, canSend: boolean) {
+  if (!ws || !canSend) return false;
   ws.send(JSON.stringify({ type, payload }));
+  return true;
 }

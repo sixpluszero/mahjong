@@ -63,9 +63,7 @@ export default function App(): JSX.Element {
   const statusText = (() => {
     const vars = { ...(state.statusArgs || {}) } as Record<string, string | number>;
     const detail = String(vars.detail || '');
-    if (detail && I18N[lang][`detail_${detail}`]) {
-      vars.detail = I18N[lang][`detail_${detail}`];
-    }
+    if (detail && I18N[lang][`detail_${detail}`]) vars.detail = I18N[lang][`detail_${detail}`];
     return tf(lang, `status_${state.statusKey}`, vars);
   })();
 
@@ -74,11 +72,8 @@ export default function App(): JSX.Element {
     setBusy(true);
     try {
       const ok = fn();
-      if (!ok) {
-        setState((s) => (s.statusKey === 'error' ? s : { ...s, statusKey: 'error', statusArgs: { detail: 'NOT_CONNECTED' } }));
-      } else {
-        setState((s) => (s.statusKey === 'error' ? { ...s, statusKey: 'connected', statusArgs: {} } : s));
-      }
+      if (!ok) setState((s) => (s.statusKey === 'error' ? s : { ...s, statusKey: 'error', statusArgs: { detail: 'NOT_CONNECTED' } }));
+      else setState((s) => (s.statusKey === 'error' ? { ...s, statusKey: 'connected', statusArgs: {} } : s));
     } finally {
       setTimeout(() => setBusy(false), 280);
     }
@@ -125,7 +120,7 @@ export default function App(): JSX.Element {
             <Text style={[styles.roomMeta, { marginTop: 8 }]}>{tf(lang, 'hand')}:</Text>
             <View style={styles.tileRow}>{(state.yourHandCodes || []).length === 0 ? <Text style={styles.playerLine}>-</Text> : state.yourHandCodes.map((c, i) => <Tile key={`${c}-${i}`} code={c} />)}</View>
             <Text style={[styles.roomMeta, { marginTop: 8 }]}>{tf(lang, 'discards')}:</Text>
-            <View style={styles.tileRow}>{(state.discards || []).length === 0 ? <Text style={styles.playerLine}>-</Text> : state.discards.map((d, i) => <Tile key={`${d.tileCode}-${i}`} code={`${d.tileCode}@${d.seat}`} />)}</View>
+            <View style={styles.tileRow}>{(state.discards || []).length === 0 ? <Text style={styles.playerLine}>-</Text> : state.discards.map((d, i) => <Tile key={`${d.tileCode}-${i}`} code={`${d.tileCode}@${d.seat}`} small />)}</View>
           </View>
         </View>
       </ScrollView>
@@ -141,8 +136,25 @@ function ActionButton({ text, onPress, active = true, disabled = false }: { text
   );
 }
 
-function Tile({ code }: { code: string }) {
-  return <View style={styles.tile}><Text style={styles.tileText}>{code}</Text></View>;
+function Tile({ code, small = false }: { code: string; small?: boolean }) {
+  const pureCode = code.includes('@') ? code.split('@')[0] : code;
+  const suit = pureCode[0];
+  const rank = Number(pureCode.slice(1));
+  const { suitLabel, color } = suitMeta(suit);
+
+  return (
+    <View style={[styles.tile, small && styles.tileSmall]}>
+      <Text style={[styles.tileCorner, { color }]}>{suitLabel}</Text>
+      <Text style={[styles.tileRank, { color }, small && styles.tileRankSmall]}>{Number.isFinite(rank) ? rank : '?'}</Text>
+      <Text style={[styles.tileBottom, { color }]}>{suitLabel}</Text>
+    </View>
+  );
+}
+
+function suitMeta(suit: string) {
+  if (suit === 'w') return { suitLabel: '萬', color: '#dc2626' };
+  if (suit === 't') return { suitLabel: '条', color: '#16a34a' };
+  return { suitLabel: '筒', color: '#2563eb' };
 }
 
 const styles = StyleSheet.create({
@@ -166,6 +178,10 @@ const styles = StyleSheet.create({
   roomMeta: { color: '#cbd5e1', marginTop: 4 },
   playerLine: { color: '#94a3b8', marginTop: 4 },
   tileRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 },
-  tile: { borderWidth: 1, borderColor: '#475569', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: '#1e293b' },
-  tileText: { color: '#e2e8f0', fontSize: 12 }
+  tile: { width: 38, height: 56, borderWidth: 1, borderColor: '#d1d5db', borderRadius: 6, backgroundColor: '#fff', paddingHorizontal: 4, paddingVertical: 3, justifyContent: 'space-between' },
+  tileSmall: { width: 34, height: 48 },
+  tileCorner: { fontSize: 10, fontWeight: '700' },
+  tileRank: { fontSize: 22, fontWeight: '800', textAlign: 'center', lineHeight: 24 },
+  tileRankSmall: { fontSize: 18, lineHeight: 20 },
+  tileBottom: { fontSize: 10, fontWeight: '700', textAlign: 'right' }
 });

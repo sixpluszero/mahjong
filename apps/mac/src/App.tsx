@@ -64,6 +64,7 @@ export default function App(): JSX.Element {
     right: findPlayerBySeat(state.players, (mySeat + 3) % 4)
   };
 
+  const bottomPlayer = seatMap.bottom ? { ...seatMap.bottom, melds: (state.yourMelds && state.yourMelds.length > 0) ? state.yourMelds : seatMap.bottom.melds } : undefined;
   const discardsBySeat = groupDiscardsBySeat(state.discards);
   const lastDiscard = state.discards.length > 0 ? state.discards[state.discards.length - 1] : null;
   const lastDiscardPlayerName = lastDiscard ? (findPlayerBySeat(state.players, lastDiscard.seat)?.name || `S${lastDiscard.seat}`) : '';
@@ -149,7 +150,7 @@ export default function App(): JSX.Element {
               </View>
               <DiscardRivers discardsBySeat={discardsBySeat} mySeat={mySeat} reactionTarget={reactionTarget} />
               <View style={styles.bottomSeatWrap}>
-                <SeatPanel player={seatMap.bottom} rematchReadySeats={state.rematchReadySeats} isTurn={state.turnSeat === seatMap.bottom?.seat} />
+                <SeatPanel player={bottomPlayer} rematchReadySeats={state.rematchReadySeats} isTurn={state.turnSeat === bottomPlayer?.seat} />
               </View>
             </View>
 
@@ -225,10 +226,12 @@ function SeatPanel({ player, rematchReadySeats, vertical = false, isTurn = false
 }
 
 function MeldGroupView({ meld }: { meld: Meld }) {
-  const baseCode = `${suitPrefix(meld.tile.suit)}${meld.tile.rank}`;
-  const count = meld.type === 'gang' ? 4 : 3;
-  const tiles = Array.from({ length: count }, () => baseCode);
-  const badge = meld.type === 'peng' ? '碰' : meld.type === 'gang' ? '杠' : '组合';
+  const raw: any = meld as any;
+  const rawTiles = Array.isArray(raw.tiles) ? raw.tiles : null;
+  const tiles = rawTiles && rawTiles.length > 0
+    ? rawTiles.map((t: any) => `${suitPrefix(t.suit)}${t.rank}`)
+    : Array.from({ length: inferMeldCount(raw.type) }, () => `${suitPrefix(meld.tile.suit)}${meld.tile.rank}`);
+  const badge = inferMeldBadge(raw.type);
 
   return (
     <View style={styles.meldGroup}>
@@ -291,6 +294,19 @@ function RiverGrid({ tiles, compact = false, highlightCode }: { tiles: string[];
       ))}
     </View>
   );
+}
+
+function inferMeldCount(type: string) {
+  const t = String(type || '').toLowerCase();
+  if (t.includes('gang') || t.includes('kong') || t.includes('杠')) return 4;
+  return 3;
+}
+
+function inferMeldBadge(type: string) {
+  const t = String(type || '').toLowerCase();
+  if (t.includes('peng') || t.includes('碰')) return '碰';
+  if (t.includes('gang') || t.includes('kong') || t.includes('杠')) return '杠';
+  return '组合';
 }
 
 function renderMelds(melds: Meld[]) { if (!melds || melds.length === 0) return '-'; return melds.map((m) => `${m.type}:${suitPrefix(m.tile.suit)}${m.tile.rank}`).join('、'); }

@@ -370,8 +370,8 @@ const styles = StyleSheet.create({
 
   seatPanel: { minWidth: 200, minHeight: 66, borderWidth: 1, borderColor: '#1f2937', borderRadius: 8, backgroundColor: '#0f172a', padding: 8, alignSelf: 'center' },
   seatPanelVertical: { minWidth: 156, width: 156 },
-  seatPanelLeft: { marginTop: 42, alignSelf: 'flex-start' },
-  seatPanelRight: { marginTop: 42, alignSelf: 'flex-end' },
+  seatPanelLeft: { marginTop: 120, alignSelf: 'flex-start' },
+  seatPanelRight: { marginTop: 120, alignSelf: 'flex-end' },
   seatPanelTurn: { borderColor: '#fbbf24', shadowColor: '#fbbf24', shadowOpacity: 0.45, shadowRadius: 8 },
   seatNameTurn: { color: '#fde68a' },
   seatName: { color: '#f8fafc', fontWeight: '700' },

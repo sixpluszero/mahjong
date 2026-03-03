@@ -131,6 +131,7 @@ function createLiveRuntime(wsUrl: string, onState: RuntimeOptions['onState']): L
   let ws: WebSocket | null = null;
   let acknowledgedName = '';
   let pendingName = '';
+  let socketReady = false;
 
   const model: any = {
     roomState: null,
@@ -150,6 +151,10 @@ function createLiveRuntime(wsUrl: string, onState: RuntimeOptions['onState']): L
   }
 
   function ensureHello() {
+    if (!socketReady) {
+      onState({ statusKey: 'error', statusArgs: { detail: 'SOCKET_NOT_READY' } });
+      return false;
+    }
     if (!pendingName) {
       onState({ statusKey: 'error', statusArgs: { detail: 'MISSING_NAME' } });
       return false;
@@ -157,7 +162,12 @@ function createLiveRuntime(wsUrl: string, onState: RuntimeOptions['onState']): L
     if (acknowledgedName === pendingName) {
       return true;
     }
-    return send('hello', { name: pendingName });
+    const ok = send('hello', { name: pendingName });
+    if (!ok) {
+      onState({ statusKey: 'error', statusArgs: { detail: 'NOT_CONNECTED' } });
+      return false;
+    }
+    return true;
   }
 
   return {
@@ -169,6 +179,7 @@ function createLiveRuntime(wsUrl: string, onState: RuntimeOptions['onState']): L
       onState({ statusKey: 'connecting', statusArgs: { wsUrl } });
 
       ws.addEventListener('open', () => {
+        socketReady = true;
         onState({ connected: true, statusKey: 'connected' });
         if (pendingName) {
           send('hello', { name: pendingName });
@@ -176,6 +187,7 @@ function createLiveRuntime(wsUrl: string, onState: RuntimeOptions['onState']): L
       });
 
       ws.addEventListener('close', () => {
+        socketReady = false;
         onState({ connected: false, statusKey: 'disconnected' });
       });
 

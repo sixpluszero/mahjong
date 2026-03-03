@@ -11,7 +11,8 @@ const I18N: Record<Lang, Record<string, string>> = {
     connected: 'Connected', yes: 'Yes', no: 'No', status: 'Status', players: 'Players', roomCard: 'Room Snapshot', phase: 'Phase', rounds: 'Rounds',
     tableCard: 'Table Preview', yourSeat: 'Your Seat', turnSeat: 'Turn Seat', hand: 'Your Hand', discards: 'Discards',
     roleHuman: 'Human', roleBot: 'Bot', readyYes: 'Ready', readyNo: 'Not Ready', onlineYes: 'Online', onlineNo: 'Offline',
-    actionBusy: 'Processing...', cannotSend: 'Cannot send action: not connected',
+    actionBusy: 'Processing...',
+    detail_SOCKET_NOT_READY: 'Connection is not ready yet', detail_MISSING_NAME: 'Please set your name first', detail_NOT_CONNECTED: 'Not connected',
     status_idle: 'Idle', status_preview_connected: 'Preview connected', status_preview_disconnected: 'Preview disconnected',
     status_preview_hello: 'Hello {name} (preview mode)', status_preview_room_created: 'Room created (preview)', status_preview_room_joined: 'Join room {roomId} (preview)',
     status_connecting: 'Connecting: {wsUrl}', status_connected: 'Connected', status_disconnected: 'Disconnected', status_room_synced: 'Room synced ({players} players)', status_error: 'Error: {detail}'
@@ -22,7 +23,8 @@ const I18N: Record<Lang, Record<string, string>> = {
     connected: '已连接', yes: '是', no: '否', status: '状态', players: '玩家', roomCard: '房间快照', phase: '阶段', rounds: '局数',
     tableCard: '牌桌预览', yourSeat: '我的座位', turnSeat: '当前行动座位', hand: '我的手牌', discards: '弃牌池',
     roleHuman: '真人', roleBot: '机器人', readyYes: '已准备', readyNo: '未准备', onlineYes: '在线', onlineNo: '离线',
-    actionBusy: '处理中...', cannotSend: '当前未连接，无法发送操作',
+    actionBusy: '处理中...',
+    detail_SOCKET_NOT_READY: '连接尚未就绪，请稍后再试', detail_MISSING_NAME: '请先设置昵称', detail_NOT_CONNECTED: '当前未连接',
     status_idle: '空闲', status_preview_connected: '预览模式已连接', status_preview_disconnected: '预览模式已断开',
     status_preview_hello: '你好，{name}（预览模式）', status_preview_room_created: '已创建房间（预览）', status_preview_room_joined: '已加入房间 {roomId}（预览）',
     status_connecting: '正在连接：{wsUrl}', status_connected: '已连接', status_disconnected: '已断开', status_room_synced: '房间同步完成（{players} 人）', status_error: '错误：{detail}'
@@ -37,7 +39,7 @@ function tf(lang: Lang, key: string, vars?: Record<string, string | number>) {
 export default function App(): JSX.Element {
   const [lang, setLang] = useState<Lang>('zh');
   const [mode, setMode] = useState<'preview' | 'live'>('preview');
-  const [wsUrl, setWsUrl] = useState('ws://localhost:8787');
+  const [wsUrl, setWsUrl] = useState('ws://127.0.0.1:8787');
   const [busy, setBusy] = useState(false);
   const [state, setState] = useState<LobbyViewState>({
     name: '', roomId: '', players: [], connected: false, statusKey: 'idle', yourHandCodes: [], discards: []
@@ -58,7 +60,14 @@ export default function App(): JSX.Element {
     return () => runtime.disconnect();
   }, [runtime]);
 
-  const statusText = tf(lang, `status_${state.statusKey}`, state.statusArgs);
+  const statusText = (() => {
+    const vars = { ...(state.statusArgs || {}) } as Record<string, string | number>;
+    const detail = String(vars.detail || '');
+    if (detail && I18N[lang][`detail_${detail}`]) {
+      vars.detail = I18N[lang][`detail_${detail}`];
+    }
+    return tf(lang, `status_${state.statusKey}`, vars);
+  })();
 
   async function runAction(fn: () => boolean) {
     if (busy) return;
@@ -66,7 +75,9 @@ export default function App(): JSX.Element {
     try {
       const ok = fn();
       if (!ok) {
-        setState((s) => ({ ...s, statusKey: 'error', statusArgs: { detail: tf(lang, 'cannotSend') } }));
+        setState((s) => ({ ...s, statusKey: 'error', statusArgs: { detail: 'NOT_CONNECTED' } }));
+      } else {
+        setState((s) => (s.statusKey === 'error' ? { ...s, statusKey: 'connected', statusArgs: {} } : s));
       }
     } finally {
       setTimeout(() => setBusy(false), 280);
@@ -83,7 +94,7 @@ export default function App(): JSX.Element {
           <View style={styles.formRow}><Text style={styles.label}>{tf(lang, 'language')}</Text><View style={styles.actionsRow}><ActionButton text="中文" onPress={() => setLang('zh')} active={lang === 'zh'} /><ActionButton text="EN" onPress={() => setLang('en')} active={lang === 'en'} /></View></View>
           <View style={styles.formRow}><Text style={styles.label}>{tf(lang, 'mode')}</Text><View style={styles.actionsRow}><ActionButton text={tf(lang, 'preview')} onPress={() => setMode('preview')} active={mode === 'preview'} /><ActionButton text={tf(lang, 'live')} onPress={() => setMode('live')} active={mode === 'live'} /></View></View>
 
-          <View style={styles.formRow}><Text style={styles.label}>{tf(lang, 'wsUrl')}</Text><TextInput value={wsUrl} onChangeText={setWsUrl} placeholder="ws://localhost:8787" placeholderTextColor="#64748b" style={styles.input} editable={!busy} /></View>
+          <View style={styles.formRow}><Text style={styles.label}>{tf(lang, 'wsUrl')}</Text><TextInput value={wsUrl} onChangeText={setWsUrl} placeholder="ws://127.0.0.1:8787" placeholderTextColor="#64748b" style={styles.input} editable={!busy} /></View>
           <View style={styles.formRow}><Text style={styles.label}>{tf(lang, 'name')}</Text><TextInput value={state.name} onChangeText={(name) => setState((s) => ({ ...s, name }))} placeholder="PlayerA" placeholderTextColor="#64748b" style={styles.input} editable={!busy} /></View>
           <View style={styles.formRow}><Text style={styles.label}>{tf(lang, 'room')}</Text><TextInput value={state.roomId} onChangeText={(roomId) => setState((s) => ({ ...s, roomId: roomId.toUpperCase() }))} placeholder="ABC123" placeholderTextColor="#64748b" style={styles.input} editable={!busy} /></View>
 
@@ -111,20 +122,10 @@ export default function App(): JSX.Element {
             <Text style={styles.roomMeta}>{tf(lang, 'phase')}: {state.gamePhase || '-'}</Text>
             <Text style={styles.roomMeta}>{tf(lang, 'yourSeat')}: {state.yourSeat ?? '-'}</Text>
             <Text style={styles.roomMeta}>{tf(lang, 'turnSeat')}: {state.turnSeat ?? '-'}</Text>
-
             <Text style={[styles.roomMeta, { marginTop: 8 }]}>{tf(lang, 'hand')}:</Text>
-            <View style={styles.tileRow}>
-              {(state.yourHandCodes || []).length === 0
-                ? <Text style={styles.playerLine}>-</Text>
-                : state.yourHandCodes.map((c, i) => <Tile key={`${c}-${i}`} code={c} />)}
-            </View>
-
+            <View style={styles.tileRow}>{(state.yourHandCodes || []).length === 0 ? <Text style={styles.playerLine}>-</Text> : state.yourHandCodes.map((c, i) => <Tile key={`${c}-${i}`} code={c} />)}</View>
             <Text style={[styles.roomMeta, { marginTop: 8 }]}>{tf(lang, 'discards')}:</Text>
-            <View style={styles.tileRow}>
-              {(state.discards || []).length === 0
-                ? <Text style={styles.playerLine}>-</Text>
-                : state.discards.map((d, i) => <Tile key={`${d.tileCode}-${i}`} code={`${d.tileCode}@${d.seat}`} />)}
-            </View>
+            <View style={styles.tileRow}>{(state.discards || []).length === 0 ? <Text style={styles.playerLine}>-</Text> : state.discards.map((d, i) => <Tile key={`${d.tileCode}-${i}`} code={`${d.tileCode}@${d.seat}`} />)}</View>
           </View>
         </View>
       </ScrollView>
@@ -141,11 +142,7 @@ function ActionButton({ text, onPress, active = true, disabled = false }: { text
 }
 
 function Tile({ code }: { code: string }) {
-  return (
-    <View style={styles.tile}>
-      <Text style={styles.tileText}>{code}</Text>
-    </View>
-  );
+  return <View style={styles.tile}><Text style={styles.tileText}>{code}</Text></View>;
 }
 
 const styles = StyleSheet.create({

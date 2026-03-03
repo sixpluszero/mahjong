@@ -6,13 +6,13 @@ type Lang = 'en' | 'zh';
 const I18N: Record<Lang, Record<string, string>> = {
   en: {
     randomName: 'Random', hello: 'Hello', create: 'Create', join: 'Join', addBot: 'Add Bot', ready: 'Ready', rematch: 'Rematch',
-    scoreboard: 'Scoreboard', melds: 'Melds', status: 'Status', phase: 'Phase', table: 'Table', submitExchange: 'Submit Exchange',
+    scoreboard: 'Scoreboard', melds: 'Peng/Gang', status: 'Status', phase: 'Phase', table: 'Table', submitExchange: 'Submit Exchange',
     lackWan: 'Lack Wan', lackTiao: 'Lack Tiao', lackTong: 'Lack Tong', reactHu: 'Hu', reactGang: 'Gang', reactPeng: 'Peng', reactPass: 'Pass',
     selfHu: 'Self Hu', turn: 'Turn', room: 'Room', connected: 'Connected', actions: 'Actions', countdown: 'Countdown'
   },
   zh: {
     randomName: '随机昵称', hello: '确认昵称', create: '创建房间', join: '加入房间', addBot: '添加机器人', ready: '准备', rematch: '再来一局',
-    scoreboard: '记分板', melds: '碰/杠', status: '状态', phase: '阶段', table: '牌桌', submitExchange: '提交换三张',
+    scoreboard: '记分板', melds: '碰杠牌组', status: '状态', phase: '阶段', table: '牌桌', submitExchange: '提交换三张',
     lackWan: '定缺万', lackTiao: '定缺条', lackTong: '定缺筒', reactHu: '胡', reactGang: '杠', reactPeng: '碰', reactPass: '过',
     selfHu: '自摸胡', turn: '当前出牌', room: '房间', connected: '连接', actions: '操作', countdown: '倒计时'
   }

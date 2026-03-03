@@ -75,7 +75,7 @@ export default function App(): JSX.Element {
     try {
       const ok = fn();
       if (!ok) {
-        setState((s) => ({ ...s, statusKey: 'error', statusArgs: { detail: 'NOT_CONNECTED' } }));
+        setState((s) => (s.statusKey === 'error' ? s : { ...s, statusKey: 'error', statusArgs: { detail: 'NOT_CONNECTED' } }));
       } else {
         setState((s) => (s.statusKey === 'error' ? { ...s, statusKey: 'connected', statusArgs: {} } : s));
       }

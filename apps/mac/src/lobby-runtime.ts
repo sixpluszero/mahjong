@@ -284,7 +284,7 @@ function createLiveRuntime(wsUrl: string, onState: RuntimeOptions['onState']): L
             onState({
               roomId: message.payload?.roomId || '', roomPhase: message.payload?.phase,
               roundNo: message.payload?.roundNo || 0, maxRounds: message.payload?.maxRounds || 0,
-              rematchReadySeats: message.payload?.rematchReadySeats || [], matchFinished: !!message.payload?.matchFinished, roundHistory: message.payload?.roundHistory || [], revealedHands: message.payload?.revealedHands || [],
+              rematchReadySeats: message.payload?.rematchReadySeats || [], matchFinished: !!message.payload?.matchFinished, roundHistory: message.payload?.roundHistory || [],
               players: enrichRoundDelta(buildPlayers(message.payload?.players || [], model.gameState?.players || [])),
               statusKey: 'room_synced'
             });
@@ -296,7 +296,7 @@ function createLiveRuntime(wsUrl: string, onState: RuntimeOptions['onState']): L
             const discards = (gs.discardPool || []).map((d: any) => ({ seat: d.seat, tileCode: `${suitPrefix(d.tile.suit)}${d.tile.rank}`, claimed: !!d.claimed || !!d.claimedBy || !!d.melded || d.takenBy != null || d.status === 'claimed' }));
             const pending = message.payload?.pendingReaction ? { fromSeat: message.payload.pendingReaction.fromSeat, canHu: !!message.payload.pendingReaction.canHu, canGang: !!message.payload.pendingReaction.canGang, canPeng: !!message.payload.pendingReaction.canPeng, tileCode: `${suitPrefix(message.payload.pendingReaction.tile.suit)}${message.payload.pendingReaction.tile.rank}` } : null;
             const playersNow = enrichRoundDelta(buildPlayers(model.roomState?.players || [], gs.players || []));
-            onState({ players: playersNow, gamePhase: gs.phase, turnSeat: gs.turnSeat, yourSeat: you.seat, yourHandTiles, discards, remainingTiles: gs.remainingTiles ?? gs.wallRemaining ?? gs.tilesLeft ?? gs.leftTileCount ?? undefined, canSelfHu: !!you.canSelfHu, yourMelds: you.melds || [], pendingReaction: pending, scoreFeed, settlementEvents: gs.settlementEvents || [], revealedHands: gs.revealedHands || message.payload?.revealedHands || [] });
+            onState({ players: playersNow, gamePhase: gs.phase, turnSeat: gs.turnSeat, yourSeat: you.seat, yourHandTiles, discards, remainingTiles: gs.remainingTiles ?? gs.wallRemaining ?? gs.tilesLeft ?? gs.leftTileCount ?? undefined, canSelfHu: !!you.canSelfHu, yourMelds: you.melds || [], pendingReaction: pending, scoreFeed, settlementEvents: gs.settlementEvents || [], revealedHands: gs.revealedHands ?? message.payload?.revealedHands });
             tryExtractScoreEventFromMessage(message, playersNow);
           }
         } catch { onState({ statusKey: 'error', statusArgs: { detail: 'PARSE_ERROR' } }); }

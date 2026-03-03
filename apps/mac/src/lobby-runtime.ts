@@ -1,6 +1,6 @@
 /**
- * EN: macOS lobby runtime adapter (preview/live).
- * 中文：macOS 大厅运行时适配层（预览/实时）。
+ * EN: macOS lobby/table runtime adapter (preview/live).
+ * 中文：macOS 大厅/牌桌运行时适配层（预览/实时）。
  */
 
 import { reduceServerMessage } from '../../../packages/client-core/src/web-entry.js';
@@ -25,6 +25,11 @@ export type LobbyPlayer = {
   online: boolean;
 };
 
+export type TableDiscard = {
+  seat: number;
+  tileCode: string;
+};
+
 export type LobbyViewState = {
   name: string;
   roomId: string;
@@ -35,6 +40,11 @@ export type LobbyViewState = {
   roomPhase?: string;
   roundNo?: number;
   maxRounds?: number;
+  gamePhase?: string;
+  turnSeat?: number;
+  yourSeat?: number;
+  yourHandCodes: string[];
+  discards: TableDiscard[];
 };
 
 export type LobbyRuntime = {
@@ -79,6 +89,11 @@ function createPreviewRuntime(onState: RuntimeOptions['onState']): LobbyRuntime 
         roundNo: 0,
         maxRounds: 8,
         players: [{ name: 'You', isBot: false, ready: false, online: true }],
+        gamePhase: 'waiting',
+        turnSeat: 0,
+        yourSeat: 0,
+        yourHandCodes: ['w1', 'w2', 'w3', 'b5', 'b6', 'b7', 't2', 't2', 't2', 'w9', 'w9', 'b1', 'b3'],
+        discards: [{ seat: 1, tileCode: 'w4' }, { seat: 2, tileCode: 'b9' }],
         statusKey: 'preview_room_created'
       });
       return true;
@@ -167,6 +182,22 @@ function createLiveRuntime(wsUrl: string, onState: RuntimeOptions['onState']): L
               statusArgs: { players: players.length }
             });
           }
+
+          if (message.type === 'game_state') {
+            const yourHandCodes = (message.payload?.you?.hand || []).map((t: any) => `${suitPrefix(t.suit)}${t.rank}`);
+            const discards = (message.payload?.state?.discardPool || []).slice(-16).map((d: any) => ({
+              seat: d.seat,
+              tileCode: `${suitPrefix(d.tile.suit)}${d.tile.rank}`
+            }));
+
+            onState({
+              gamePhase: message.payload?.state?.phase,
+              turnSeat: message.payload?.state?.turnSeat,
+              yourSeat: message.payload?.you?.seat,
+              yourHandCodes,
+              discards
+            });
+          }
         } catch {
           onState({ statusKey: 'error' });
         }
@@ -200,4 +231,10 @@ function send(ws: WebSocket | null, type: string, payload: unknown, canSend: boo
   if (!ws || !canSend) return false;
   ws.send(JSON.stringify({ type, payload }));
   return true;
+}
+
+function suitPrefix(suit: string) {
+  if (suit === 'wan') return 'w';
+  if (suit === 'tong') return 'b';
+  return 't';
 }

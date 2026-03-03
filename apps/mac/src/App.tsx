@@ -154,7 +154,7 @@ export default function App(): JSX.Element {
             {inSettlement ? <View style={styles.row}><Btn text={t(lang, 'rematch')} onPress={() => run(() => runtime.requestRematch())} /></View> : null}
 
             <View style={styles.handArea}>
-              <View style={styles.tileRow}>{state.yourHandTiles.map((tile) => <Tile key={tile.id} code={tile.code} selected={exchangeSelected.includes(tile.id)} onPress={() => onTilePress(tile)} />)}</View>
+              <View style={[styles.tileRow, !(canDiscard || inExchange) && styles.tileRowDisabled]}>{state.yourHandTiles.map((tile) => <Tile key={tile.id} code={tile.code} selected={exchangeSelected.includes(tile.id)} active={canDiscard || inExchange} onPress={() => onTilePress(tile)} />)}</View>
             </View>
           </View>
 
@@ -226,12 +226,12 @@ function findPlayerBySeat(players: LobbyPlayer[], seat: number) { return players
 function groupDiscardsBySeat(discards: { seat: number; tileCode: string }[]) { const map: Record<number, string[]> = {}; for (const d of discards) { if (!map[d.seat]) map[d.seat] = []; map[d.seat].push(d.tileCode); } return map; }
 
 function Btn({ text, onPress }: { text: string; onPress: () => void }) { return <Pressable style={styles.btn} onPress={onPress}><Text style={styles.btnText}>{text}</Text></Pressable>; }
-function Tile({ code, small = false, selected = false, onPress }: { code: string; small?: boolean; selected?: boolean; onPress?: () => void }) {
+function Tile({ code, small = false, selected = false, active = false, onPress }: { code: string; small?: boolean; selected?: boolean; active?: boolean; onPress?: () => void }) {
   const pure = code.includes('@') ? code.split('@')[0] : code;
   const suit = pure[0]; const rank = Number(pure.slice(1)); const { label, color } = meta(suit);
-  return <Pressable onPress={onPress} disabled={!onPress} style={[styles.tile, small && styles.tileSmall, selected && styles.tileSel]}><Text style={[styles.corner, { color }]}>{label}</Text><Text style={[styles.rank, { color }]}>{rank}</Text><Text style={[styles.corner, { color, alignSelf: 'flex-end' }]}>{label}</Text></Pressable>;
+  return <Pressable onPress={onPress} disabled={!onPress} style={[styles.tile, small && styles.tileSmall, selected && styles.tileSel, !active && styles.tileInactive]}><Text style={[styles.corner, { color }]}>{label}</Text><Text style={[styles.rank, { color }]}>{rank}</Text><Text style={[styles.corner, { color, alignSelf: 'flex-end' }]}>{label}</Text></Pressable>;
 }
-function MiniTile({ code }: { code: string }) { return <Tile code={code} small />; }
+function MiniTile({ code }: { code: string }) { return <Tile code={code} small active />; }
 function meta(s: string) { if (s === 'w') return { label: '萬', color: '#dc2626' }; if (s === 't') return { label: '条', color: '#16a34a' }; return { label: '筒', color: '#2563eb' }; }
 
 const styles = StyleSheet.create({
@@ -283,9 +283,11 @@ const styles = StyleSheet.create({
   title: { color: '#f8fafc', fontWeight: '700' },
 
   tileRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6, justifyContent: 'center' },
+  tileRowDisabled: { opacity: 0.55 },
   tile: { width: 38, height: 58, borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, backgroundColor: '#fff', padding: 4, justifyContent: 'space-between' },
   tileSmall: { width: 24, height: 34, borderRadius: 5, padding: 2 },
   tileSel: { borderColor: '#f59e0b', transform: [{ translateY: -2 }] },
+  tileInactive: { opacity: 0.72, backgroundColor: '#f3f4f6' },
   corner: { fontSize: 9, fontWeight: '700' },
   rank: { fontSize: 20, fontWeight: '800', textAlign: 'center' }
 });

@@ -351,7 +351,10 @@ function tileCodeToZh(code: string) {
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: '#0f172a' },
   wrap: { padding: 16, alignItems: 'center' },
-  card: { width: 860, backgroundColor: '#111827', borderRadius: 14, padding: 14 },
+  card: { width: 980, backgroundColor: '#111827', borderRadius: 14, padding: 14 },
+  contentRow: { flexDirection: 'row', alignItems: 'flex-start', columnGap: 12 },
+  managePanel: { width: 250, borderWidth: 1, borderColor: '#334155', borderRadius: 12, padding: 10, backgroundColor: '#0b1220' },
+  panelTitle: { color: '#f8fafc', fontWeight: '700', marginBottom: 6 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
   input: { borderWidth: 1, borderColor: '#334155', borderRadius: 8, color: '#e2e8f0', padding: 10, marginTop: 8 },
   nameInput: { minWidth: 180 },
@@ -361,7 +364,7 @@ const styles = StyleSheet.create({
   btnTextDisabled: { color: '#94a3b8' },
   meta: { color: '#cbd5e1', marginTop: 4, fontSize: 12 },
 
-  tablePanel: { marginTop: 12, borderWidth: 1, borderColor: '#334155', borderRadius: 12, padding: 10, backgroundColor: '#0b1220' },
+  tablePanel: { flex: 1, borderWidth: 1, borderColor: '#334155', borderRadius: 12, padding: 10, backgroundColor: '#0b1220' },
   tableHeader: { marginBottom: 8 },
   tableTitle: { color: '#f8fafc', fontWeight: '700', fontSize: 16 },
   tableSurface: { borderRadius: 10, padding: 10, backgroundColor: '#0a3a32' },

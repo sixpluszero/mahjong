@@ -18,13 +18,23 @@ export type LobbyStatusKey =
   | 'room_synced'
   | 'error';
 
+export type LobbyPlayer = {
+  name: string;
+  isBot: boolean;
+  ready: boolean;
+  online: boolean;
+};
+
 export type LobbyViewState = {
   name: string;
   roomId: string;
-  players: string[];
+  players: LobbyPlayer[];
   connected: boolean;
   statusKey: LobbyStatusKey;
   statusArgs?: Record<string, string | number>;
+  roomPhase?: string;
+  roundNo?: number;
+  maxRounds?: number;
 };
 
 export type LobbyRuntime = {
@@ -62,16 +72,37 @@ function createPreviewRuntime(onState: RuntimeOptions['onState']): LobbyRuntime 
       onState({ name, statusKey: 'preview_hello', statusArgs: { name: name || 'Player' } });
     },
     createRoom() {
-      onState({ roomId: 'ABC123', statusKey: 'preview_room_created' });
+      onState({
+        roomId: 'ABC123',
+        roomPhase: 'waiting',
+        roundNo: 0,
+        maxRounds: 8,
+        players: [{ name: 'You', isBot: false, ready: false, online: true }],
+        statusKey: 'preview_room_created'
+      });
     },
     joinRoom(roomId: string) {
       onState({ roomId: roomId.toUpperCase(), statusKey: 'preview_room_joined', statusArgs: { roomId: roomId.toUpperCase() } });
     },
     addBot() {
-      onState({ statusKey: 'room_synced', statusArgs: { players: 2 } });
+      onState({
+        players: [
+          { name: 'You', isBot: false, ready: false, online: true },
+          { name: 'Bot_1', isBot: true, ready: true, online: true }
+        ],
+        statusKey: 'room_synced',
+        statusArgs: { players: 2 }
+      });
     },
     setReady() {
-      onState({ statusKey: 'room_synced', statusArgs: { players: 2 } });
+      onState({
+        players: [
+          { name: 'You', isBot: false, ready: true, online: true },
+          { name: 'Bot_1', isBot: true, ready: true, online: true }
+        ],
+        statusKey: 'room_synced',
+        statusArgs: { players: 2 }
+      });
     }
   };
 }
@@ -110,9 +141,18 @@ function createLiveRuntime(wsUrl: string, onState: RuntimeOptions['onState']): L
           if (message.type === 'room_state') {
             const players = (message.payload?.players || [])
               .filter((p: any) => p.occupied)
-              .map((p: any) => p.name);
+              .map((p: any) => ({
+                name: p.name,
+                isBot: !!p.isBot,
+                ready: !!p.ready,
+                online: p.online !== false
+              }));
+
             onState({
               roomId: message.payload?.roomId || '',
+              roomPhase: message.payload?.phase,
+              roundNo: message.payload?.roundNo || 0,
+              maxRounds: message.payload?.maxRounds || 0,
               players,
               statusKey: 'room_synced',
               statusArgs: { players: players.length }

@@ -25,6 +25,15 @@ const I18N: Record<Lang, Record<string, string>> = {
     no: 'No',
     status: 'Status',
     players: 'Players',
+    roomCard: 'Room Snapshot',
+    phase: 'Phase',
+    rounds: 'Rounds',
+    roleHuman: 'Human',
+    roleBot: 'Bot',
+    readyYes: 'Ready',
+    readyNo: 'Not Ready',
+    onlineYes: 'Online',
+    onlineNo: 'Offline',
     status_idle: 'Idle',
     status_preview_connected: 'Preview connected',
     status_preview_disconnected: 'Preview disconnected',
@@ -57,6 +66,15 @@ const I18N: Record<Lang, Record<string, string>> = {
     no: '否',
     status: '状态',
     players: '玩家',
+    roomCard: '房间快照',
+    phase: '阶段',
+    rounds: '局数',
+    roleHuman: '真人',
+    roleBot: '机器人',
+    readyYes: '已准备',
+    readyNo: '未准备',
+    onlineYes: '在线',
+    onlineNo: '离线',
     status_idle: '空闲',
     status_preview_connected: '预览模式已连接',
     status_preview_disconnected: '预览模式已断开',
@@ -149,7 +167,24 @@ export default function App(): JSX.Element {
 
         <Text style={styles.meta}>{tf(lang, 'connected')}: {state.connected ? tf(lang, 'yes') : tf(lang, 'no')}</Text>
         <Text style={styles.meta}>{tf(lang, 'status')}: {statusText}</Text>
-        <Text style={styles.meta}>{tf(lang, 'players')}: {state.players.join(', ') || '-'}</Text>
+
+        <View style={styles.roomCard}>
+          <Text style={styles.roomTitle}>{tf(lang, 'roomCard')}</Text>
+          <Text style={styles.roomMeta}>{tf(lang, 'room')}: {state.roomId || '-'}</Text>
+          <Text style={styles.roomMeta}>{tf(lang, 'phase')}: {state.roomPhase || '-'}</Text>
+          <Text style={styles.roomMeta}>{tf(lang, 'rounds')}: {(state.roundNo ?? 0)}/{state.maxRounds ?? 0}</Text>
+
+          <Text style={[styles.roomMeta, { marginTop: 8 }]}>{tf(lang, 'players')}:</Text>
+          {(state.players || []).length === 0 ? (
+            <Text style={styles.playerLine}>-</Text>
+          ) : (
+            state.players.map((p, idx) => (
+              <Text key={`${p.name}-${idx}`} style={styles.playerLine}>
+                {idx + 1}. {p.name} · {p.isBot ? tf(lang, 'roleBot') : tf(lang, 'roleHuman')} · {p.ready ? tf(lang, 'readyYes') : tf(lang, 'readyNo')} · {p.online ? tf(lang, 'onlineYes') : tf(lang, 'onlineNo')}
+              </Text>
+            ))
+          )}
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -165,7 +200,7 @@ function ActionButton({ text, onPress, active = true }: { text: string; onPress:
 
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: '#0f172a', justifyContent: 'center', alignItems: 'center' },
-  card: { width: 720, borderRadius: 16, padding: 20, backgroundColor: '#111827' },
+  card: { width: 760, borderRadius: 16, padding: 20, backgroundColor: '#111827' },
   title: { color: '#f8fafc', fontSize: 24, fontWeight: '700' },
   subtitle: { color: '#cbd5e1', marginTop: 8, fontSize: 16 },
   formRow: { marginTop: 14 },
@@ -175,5 +210,9 @@ const styles = StyleSheet.create({
   button: { backgroundColor: '#1d4ed8', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
   buttonInactive: { backgroundColor: '#334155' },
   buttonText: { color: '#fff', fontWeight: '600' },
-  meta: { marginTop: 12, color: '#cbd5e1' }
+  meta: { marginTop: 12, color: '#cbd5e1' },
+  roomCard: { marginTop: 14, borderWidth: 1, borderColor: '#334155', borderRadius: 12, padding: 12, backgroundColor: '#0b1220' },
+  roomTitle: { color: '#f8fafc', fontWeight: '700' },
+  roomMeta: { color: '#cbd5e1', marginTop: 4 },
+  playerLine: { color: '#94a3b8', marginTop: 4 }
 });

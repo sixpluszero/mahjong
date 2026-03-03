@@ -230,13 +230,11 @@ export default function App(): JSX.Element {
                         return (
                           <View key={`rh-${rh.seat}`} style={styles.revealRow}>
                             <Text style={styles.revealName}>{name}:</Text>
-                            <View style={styles.revealTiles}>{handTiles.length ? handTiles.map((c: string, i: number) => <MiniTile key={`${rh.seat}-h-${i}-${c}`} code={c} />) : <Text style={styles.revealItem}>-</Text>}</View>
-                            {meldTiles.length > 0 ? (
-                              <View style={styles.revealMeldLine}>
-                                <Text style={styles.revealMeldLabel}>碰杠:</Text>
-                                <View style={styles.revealTiles}>{meldTiles.map((c: string, i: number) => <MiniTile key={`${rh.seat}-m-${i}-${c}`} code={c} />)}</View>
-                              </View>
-                            ) : null}
+                            <View style={styles.revealTiles}>
+                              {handTiles.length ? handTiles.map((c: string, i: number) => <MiniTile key={`${rh.seat}-h-${i}-${c}`} code={c} />) : <Text style={styles.revealItem}>-</Text>}
+                              {meldTiles.length > 0 ? <View style={styles.revealGap} /> : null}
+                              {meldTiles.map((c: string, i: number) => <MiniTile key={`${rh.seat}-m-${i}-${c}`} code={c} />)}
+                            </View>
                           </View>
                         );
                       })}
@@ -547,8 +545,7 @@ const styles = StyleSheet.create({
   revealRow: { marginTop: 6 },
   revealName: { color: '#ddd6fe', marginBottom: 4, fontSize: 12 },
   revealTiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
-  revealMeldLine: { marginTop: 4 },
-  revealMeldLabel: { color: '#c4b5fd', fontSize: 11, marginBottom: 3 },
+  revealGap: { width: 14 },
   revealItem: { color: '#ddd6fe', marginTop: 4, fontSize: 12 },
 
   panel: { marginTop: 10, borderWidth: 1, borderColor: '#334155', borderRadius: 10, padding: 8, backgroundColor: '#0b1220' },

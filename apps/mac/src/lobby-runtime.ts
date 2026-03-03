@@ -62,10 +62,22 @@ function createLiveRuntime(wsUrl: string, onState: RuntimeOptions['onState']): L
   };
 
   const buildPlayers = (roomPlayers: any[] = [], gamePlayers: any[] = []): LobbyPlayer[] => {
-    const meldBySeat = new Map<number, Meld[]>(gamePlayers.map((p: any) => [p.seat, p.melds || []]));
-    return roomPlayers.filter((p: any) => p.occupied).map((p: any) => ({
-      seat: p.seat, name: p.name, isBot: !!p.isBot, ready: !!p.ready, online: p.online !== false, totalScore: p.totalScore ?? 0, roundDelta: p.roundScore ?? p.deltaScore ?? p.changeScore ?? 0, lackSuit: (p.lackSuit ?? p.lackType ?? p.missingSuit ?? null), melds: meldBySeat.get(p.seat) || []
-    }));
+    const gameBySeat = new Map<number, any>(gamePlayers.map((p: any) => [p.seat, p]));
+    return roomPlayers.filter((p: any) => p.occupied).map((p: any) => {
+      const gp = gameBySeat.get(p.seat) || {};
+      const lackRaw = gp.lackSuit ?? gp.lackType ?? gp.missingSuit ?? gp.lack ?? p.lackSuit ?? p.lackType ?? p.missingSuit ?? p.lack ?? null;
+      return {
+        seat: p.seat,
+        name: p.name,
+        isBot: !!p.isBot,
+        ready: !!p.ready,
+        online: p.online !== false,
+        totalScore: gp.totalScore ?? p.totalScore ?? 0,
+        roundDelta: gp.roundScore ?? gp.deltaScore ?? gp.changeScore ?? p.roundScore ?? p.deltaScore ?? p.changeScore ?? 0,
+        lackSuit: lackRaw,
+        melds: gp.melds || []
+      };
+    });
   };
 
   return {

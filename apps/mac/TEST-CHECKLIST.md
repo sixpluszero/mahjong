@@ -1,25 +1,38 @@
-# Mac Client Manual Test Checklist (Lobby MVP)
+# Mac Client Manual Test Checklist (Sichuan Round Smoke)
 
-## 0. Boot
-- [ ] mac host app launches and renders `apps/mac/src/App.tsx`
-- [ ] Preview mode shows connected status
+## 0. 启动
+- [ ] mac host app 启动成功并渲染 `apps/mac/src/App.tsx`
+- [ ] Live 模式可连接服务端（Connected: Yes）
 
-## 1. Live connection
-- [ ] Switch to Live mode
-- [ ] `Connected: Yes` appears when server is running
-- [ ] Stop server -> status becomes disconnected
+## 1. 房间与准备
+- [ ] 输入昵称 -> 确认昵称
+- [ ] 创建房间成功（有 roomId）
+- [ ] 添加机器人后，座位面板刷新
+- [ ] 准备后，状态同步正常
 
-## 2. Lobby actions
-- [ ] Enter name and click Hello
-- [ ] Create room updates room status
-- [ ] Join room with room ID
-- [ ] Players list syncs from server room_state
+## 2. 开局流程（川麻）
+- [ ] 换三张阶段：可选 3 张并提交
+- [ ] 定缺阶段：可选择万/条/筒
+- [ ] 进入出牌阶段后，轮到谁发光高亮正确
 
-## 3. Regression
-- [ ] Web still works for create/join after mac tests
-- [ ] No server console errors from mac handshake
+## 3. 出牌与反应
+- [ ] 自己回合：手牌高亮可出
+- [ ] 非自己回合：手牌/按钮灰化并提示“未到你回合”
+- [ ] 出牌后中央信息显示“谁打出什么牌”短提示
+- [ ] 可碰/杠/胡时动作条出现，倒计时颜色随时间变化（绿->黄->红）
+- [ ] 点击碰/杠/胡/过后出现动作反馈 toast
 
-## 4. Feature parity checkpoints
-- [ ] Add Bot button sends `add_bot` and room updates
-- [ ] Ready button sends `set_ready`
-- [ ] Language switch (中文 / EN) updates all visible labels
+## 4. 牌桌可读性
+- [ ] 弃牌河按固定网格排列，无明显跳动
+- [ ] 四家副露为牌组展示（非纯文本）
+- [ ] 记分板与座位分数显示一致
+
+## 5. 结算与再来一局
+- [ ] 结算时显示“本局结算”面板
+- [ ] 每位玩家显示：本局分变化 + 总分
+- [ ] 点击“再来一局”可进入下一局流程
+
+## 6. 回归
+- [ ] 断开/重连后不会卡死（至少可重新连接并继续）
+- [ ] Web 端与 Mac 端可在同房间协同对局
+- [ ] 服务端无未处理异常日志

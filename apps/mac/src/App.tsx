@@ -131,21 +131,22 @@ export default function App(): JSX.Element {
             </View>
 
             <View style={styles.tableSurface}>
+              <CenterHUD
+                turnSeat={state.turnSeat}
+                roomPhase={state.roomPhase}
+                roundNo={state.roundNo}
+                maxRounds={state.maxRounds}
+                statusKey={state.statusKey}
+                statusDetail={state.statusArgs?.detail}
+                remainingTiles={state.remainingTiles}
+                lastDiscard={lastDiscard}
+                lastDiscardPlayerName={lastDiscardPlayerName}
+                flash={lastDiscardFlash}
+              />
               <SeatPanel player={seatMap.top} rematchReadySeats={state.rematchReadySeats} isTurn={state.turnSeat === seatMap.top?.seat} isSelf={false} />
               <View style={styles.middleRow}>
                 <SeatPanel player={seatMap.left} rematchReadySeats={state.rematchReadySeats} vertical side="left" isTurn={state.turnSeat === seatMap.left?.seat} isSelf={false} />
-                <CenterHUD
-                  turnSeat={state.turnSeat}
-                  roomPhase={state.roomPhase}
-                  roundNo={state.roundNo}
-                  maxRounds={state.maxRounds}
-                  statusKey={state.statusKey}
-                  statusDetail={state.statusArgs?.detail}
-                  remainingTiles={state.remainingTiles}
-                  lastDiscard={lastDiscard}
-                  lastDiscardPlayerName={lastDiscardPlayerName}
-                  flash={lastDiscardFlash}
-                />
+                <View style={styles.centerSpacer} />
                 <SeatPanel player={seatMap.right} rematchReadySeats={state.rematchReadySeats} vertical side="right" isTurn={state.turnSeat === seatMap.right?.seat} isSelf={false} />
               </View>
               <DiscardRivers discardsBySeat={discardsBySeat} mySeat={mySeat} reactionTarget={reactionTarget} />
@@ -367,6 +368,7 @@ const styles = StyleSheet.create({
   tableTitle: { color: '#f8fafc', fontWeight: '700', fontSize: 16 },
   tableSurface: { borderRadius: 10, padding: 10, backgroundColor: '#0a3a32' },
   middleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 8, columnGap: 10 },
+  centerSpacer: { width: 250 },
 
   seatPanel: { minWidth: 200, minHeight: 66, borderWidth: 1, borderColor: '#1f2937', borderRadius: 8, backgroundColor: '#0f172a', padding: 8, alignSelf: 'center' },
   seatPanelVertical: { minWidth: 132, width: 132 },

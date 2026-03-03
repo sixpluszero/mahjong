@@ -203,7 +203,8 @@ export default function App(): JSX.Element {
                   {leaderboard.map((p, i) => {
                     const delta = Number(roundDeltaMap.get(p.seat) ?? p.roundDelta ?? 0);
                     const deltaText = delta > 0 ? `+${delta}` : `${delta}`;
-                    return <Text key={`st-${p.seat}`} style={styles.settlementItem}>{i + 1}. S{p.seat} {p.name}  本局 {deltaText}  ·  总分 {p.totalScore}</Text>;
+                    const top = delta === Math.max(...leaderboard.map((x) => Number(roundDeltaMap.get(x.seat) ?? x.roundDelta ?? 0)));
+                    return <Text key={`st-${p.seat}`} style={[styles.settlementItem, top && styles.settlementItemTop]}>{i + 1}. S{p.seat} {p.name}  本局 {deltaText}  ·  总分 {p.totalScore}</Text>;
                   })}
 
                   {(state.revealedHands || []).length > 0 ? (
@@ -213,7 +214,10 @@ export default function App(): JSX.Element {
                         const name = findPlayerBySeat(state.players, rh.seat)?.name || `S${rh.seat}`;
                         const tiles = (rh.hand || []).map((t: any) => `${t.suit?.[0] === 'w' ? 'w' : t.suit?.[0] === 't' ? 't' : 'b'}${t.rank}`);
                         return (
-                          <Text key={`rh-${rh.seat}`} style={styles.revealItem}>{name}: {tiles.map((c: string) => tileCodeToZh(c)).join(' ') || '-'}</Text>
+                          <View key={`rh-${rh.seat}`} style={styles.revealRow}>
+                            <Text style={styles.revealName}>{name}:</Text>
+                            <View style={styles.revealTiles}>{tiles.length ? tiles.map((c: string, i: number) => <MiniTile key={`${rh.seat}-${i}-${c}`} code={c} />) : <Text style={styles.revealItem}>-</Text>}</View>
+                          </View>
                         );
                       })}
                     </View>
@@ -517,8 +521,12 @@ const styles = StyleSheet.create({
   settlementModalCard: { width: '86%', maxWidth: 820, borderWidth: 1, borderColor: '#7c3aed', borderRadius: 12, padding: 12, backgroundColor: '#1f1147' },
   settlementTitle: { color: '#f5d0fe', fontWeight: '800', fontSize: 16 },
   settlementItem: { color: '#e9d5ff', marginTop: 4 },
+  settlementItemTop: { color: '#fde68a', fontWeight: '800' },
   revealPanel: { marginTop: 8, borderWidth: 1, borderColor: '#4c1d95', borderRadius: 8, padding: 8, backgroundColor: '#130a2f' },
   revealTitle: { color: '#e9d5ff', fontWeight: '700' },
+  revealRow: { marginTop: 6 },
+  revealName: { color: '#ddd6fe', marginBottom: 4, fontSize: 12 },
+  revealTiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
   revealItem: { color: '#ddd6fe', marginTop: 4, fontSize: 12 },
 
   panel: { marginTop: 10, borderWidth: 1, borderColor: '#334155', borderRadius: 10, padding: 8, backgroundColor: '#0b1220' },

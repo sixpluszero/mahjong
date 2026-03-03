@@ -378,7 +378,7 @@ const styles = StyleSheet.create({
   meldTilesRow: { flexDirection: 'row', gap: 2 },
   meldBadge: { color: '#94a3b8', fontSize: 10, textAlign: 'center', marginTop: 2 },
 
-  centerHud: { width: 420, borderWidth: 1, borderColor: '#1f2937', borderRadius: 8, backgroundColor: '#111827', padding: 8, alignItems: 'center' },
+  centerHud: { width: 520, borderWidth: 1, borderColor: '#1f2937', borderRadius: 8, backgroundColor: '#111827', padding: 8, alignItems: 'center' },
   centerTitle: { color: '#f8fafc', fontWeight: '700' },
   lastDiscardBadge: { marginTop: 6, borderWidth: 1, borderColor: '#334155', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: '#0b1220' },
   lastDiscardBadgeFlash: { borderColor: '#f59e0b', backgroundColor: '#3f2a00' },

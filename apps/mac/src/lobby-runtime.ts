@@ -37,20 +37,36 @@ function createPreviewRuntime(onState: RuntimeOptions['onState']): LobbyRuntime 
 
   const pushScoreFeed = (text: string) => {
     if (!text) return;
+    if (scoreFeed[0]?.text === text) return;
     scoreFeed = [{ id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`, ts: Date.now(), text }, ...scoreFeed].slice(0, 80);
     onState({ scoreFeed });
   };
 
+  const fmtSeatName = (seat: number, players: LobbyPlayer[]) => players.find((p) => p.seat === seat)?.name || `S${seat}`;
+
   const enrichRoundDelta = (players: LobbyPlayer[]): LobbyPlayer[] => {
-    return players.map((p) => {
+    const enriched = players.map((p) => {
       const prev = prevTotals.get(p.seat);
       let roundDelta = p.roundDelta;
-      if ((roundDelta == null || roundDelta === 0) && typeof prev === 'number' && prev !== p.totalScore) {
+      if (typeof prev === 'number' && prev !== p.totalScore) {
         roundDelta = p.totalScore - prev;
       }
       prevTotals.set(p.seat, p.totalScore);
       return { ...p, roundDelta };
     });
+
+    // fallback score feed: whenever total changes, log one line even without scoreEvents
+    enriched.forEach((p) => {
+      const prev = prevTotals.get(p.seat);
+      // prevTotals already updated above; recover previous via total-delta if possible
+      const d = Number(p.roundDelta || 0);
+      if (d !== 0) {
+        const sign = d > 0 ? '+' : '';
+        pushScoreFeed(`${fmtSeatName(p.seat, enriched)} 分数变动 ${sign}${d}，总分 ${p.totalScore}`);
+      }
+    });
+
+    return enriched;
   };
 
   const tryExtractScoreEventFromMessage = (message: any, players: LobbyPlayer[]) => {
@@ -116,20 +132,36 @@ function createLiveRuntime(wsUrl: string, onState: RuntimeOptions['onState']): L
     
   const pushScoreFeed = (text: string) => {
     if (!text) return;
+    if (scoreFeed[0]?.text === text) return;
     scoreFeed = [{ id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`, ts: Date.now(), text }, ...scoreFeed].slice(0, 80);
     onState({ scoreFeed });
   };
 
+  const fmtSeatName = (seat: number, players: LobbyPlayer[]) => players.find((p) => p.seat === seat)?.name || `S${seat}`;
+
   const enrichRoundDelta = (players: LobbyPlayer[]): LobbyPlayer[] => {
-    return players.map((p) => {
+    const enriched = players.map((p) => {
       const prev = prevTotals.get(p.seat);
       let roundDelta = p.roundDelta;
-      if ((roundDelta == null || roundDelta === 0) && typeof prev === 'number' && prev !== p.totalScore) {
+      if (typeof prev === 'number' && prev !== p.totalScore) {
         roundDelta = p.totalScore - prev;
       }
       prevTotals.set(p.seat, p.totalScore);
       return { ...p, roundDelta };
     });
+
+    // fallback score feed: whenever total changes, log one line even without scoreEvents
+    enriched.forEach((p) => {
+      const prev = prevTotals.get(p.seat);
+      // prevTotals already updated above; recover previous via total-delta if possible
+      const d = Number(p.roundDelta || 0);
+      if (d !== 0) {
+        const sign = d > 0 ? '+' : '';
+        pushScoreFeed(`${fmtSeatName(p.seat, enriched)} 分数变动 ${sign}${d}，总分 ${p.totalScore}`);
+      }
+    });
+
+    return enriched;
   };
 
   const tryExtractScoreEventFromMessage = (message: any, players: LobbyPlayer[]) => {
@@ -173,20 +205,36 @@ function createLiveRuntime(wsUrl: string, onState: RuntimeOptions['onState']): L
 
   const pushScoreFeed = (text: string) => {
     if (!text) return;
+    if (scoreFeed[0]?.text === text) return;
     scoreFeed = [{ id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`, ts: Date.now(), text }, ...scoreFeed].slice(0, 80);
     onState({ scoreFeed });
   };
 
+  const fmtSeatName = (seat: number, players: LobbyPlayer[]) => players.find((p) => p.seat === seat)?.name || `S${seat}`;
+
   const enrichRoundDelta = (players: LobbyPlayer[]): LobbyPlayer[] => {
-    return players.map((p) => {
+    const enriched = players.map((p) => {
       const prev = prevTotals.get(p.seat);
       let roundDelta = p.roundDelta;
-      if ((roundDelta == null || roundDelta === 0) && typeof prev === 'number' && prev !== p.totalScore) {
+      if (typeof prev === 'number' && prev !== p.totalScore) {
         roundDelta = p.totalScore - prev;
       }
       prevTotals.set(p.seat, p.totalScore);
       return { ...p, roundDelta };
     });
+
+    // fallback score feed: whenever total changes, log one line even without scoreEvents
+    enriched.forEach((p) => {
+      const prev = prevTotals.get(p.seat);
+      // prevTotals already updated above; recover previous via total-delta if possible
+      const d = Number(p.roundDelta || 0);
+      if (d !== 0) {
+        const sign = d > 0 ? '+' : '';
+        pushScoreFeed(`${fmtSeatName(p.seat, enriched)} 分数变动 ${sign}${d}，总分 ${p.totalScore}`);
+      }
+    });
+
+    return enriched;
   };
 
   const tryExtractScoreEventFromMessage = (message: any, players: LobbyPlayer[]) => {

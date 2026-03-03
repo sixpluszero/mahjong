@@ -127,8 +127,9 @@ export default function App(): JSX.Element {
               <View style={styles.actionBarWrap}>
                 <View style={styles.actionBarHeader}>
                   <Text style={styles.actionTitle}>{t(lang, 'actions')}</Text>
-                  <Text style={styles.actionTimer}>{t(lang, 'countdown')}: {actionCountdown}s</Text>
+                  <Text style={[styles.actionTimer, actionCountdown <= 3 ? styles.actionTimerDanger : (actionCountdown <= 5 ? styles.actionTimerWarn : null)]}>{t(lang, 'countdown')}: {actionCountdown}s</Text>
                 </View>
+                {actionCountdown > 0 ? <View style={[styles.countdownBar, actionCountdown <= 3 ? styles.countdownBarDanger : (actionCountdown <= 5 ? styles.countdownBarWarn : null), { width: `${Math.max(8, Math.round((actionCountdown / 8) * 100))}%` }]} /> : null}
                 {state.pendingReaction ? (
                   <View style={styles.actionBar}>
                     {state.pendingReaction.canHu && <Btn text={t(lang, 'reactHu')} onPress={() => run(() => runtime.react('hu'))} />}
@@ -269,7 +270,12 @@ const styles = StyleSheet.create({
   actionBarWrap: { marginTop: 10, backgroundColor: '#111827', borderRadius: 8, padding: 8, borderWidth: 1, borderColor: '#334155' },
   actionBarHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   actionTitle: { color: '#f8fafc', fontWeight: '700' },
-  actionTimer: { color: '#fbbf24', fontWeight: '700' },
+  actionTimer: { color: '#86efac', fontWeight: '700' },
+  actionTimerWarn: { color: '#fbbf24' },
+  actionTimerDanger: { color: '#f87171' },
+  countdownBar: { height: 4, borderRadius: 999, backgroundColor: '#22c55e', marginBottom: 6 },
+  countdownBarWarn: { backgroundColor: '#f59e0b' },
+  countdownBarDanger: { backgroundColor: '#ef4444' },
   actionBar: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
   handArea: { marginTop: 10, borderTopWidth: 1, borderTopColor: '#334155', paddingTop: 10 },
 

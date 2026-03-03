@@ -131,9 +131,9 @@ export default function App(): JSX.Element {
             </View>
 
             <View style={styles.tableSurface}>
-              <SeatPanel player={seatMap.top} rematchReadySeats={state.rematchReadySeats} isTurn={state.turnSeat === seatMap.top?.seat} />
+              <SeatPanel player={seatMap.top} rematchReadySeats={state.rematchReadySeats} isTurn={state.turnSeat === seatMap.top?.seat} isSelf={false} />
               <View style={styles.middleRow}>
-                <SeatPanel player={seatMap.left} rematchReadySeats={state.rematchReadySeats} vertical isTurn={state.turnSeat === seatMap.left?.seat} />
+                <SeatPanel player={seatMap.left} rematchReadySeats={state.rematchReadySeats} vertical isTurn={state.turnSeat === seatMap.left?.seat} isSelf={false} />
                 <CenterHUD
                   turnSeat={state.turnSeat}
                   roomPhase={state.roomPhase}
@@ -146,11 +146,11 @@ export default function App(): JSX.Element {
                   lastDiscardPlayerName={lastDiscardPlayerName}
                   flash={lastDiscardFlash}
                 />
-                <SeatPanel player={seatMap.right} rematchReadySeats={state.rematchReadySeats} vertical isTurn={state.turnSeat === seatMap.right?.seat} />
+                <SeatPanel player={seatMap.right} rematchReadySeats={state.rematchReadySeats} vertical isTurn={state.turnSeat === seatMap.right?.seat} isSelf={false} />
               </View>
               <DiscardRivers discardsBySeat={discardsBySeat} mySeat={mySeat} reactionTarget={reactionTarget} />
               <View style={styles.bottomSeatWrap}>
-                <SeatPanel player={bottomPlayer} rematchReadySeats={state.rematchReadySeats} isTurn={state.turnSeat === bottomPlayer?.seat} />
+                <SeatPanel player={bottomPlayer} rematchReadySeats={state.rematchReadySeats} isTurn={state.turnSeat === bottomPlayer?.seat} isSelf />
               </View>
             </View>
 
@@ -211,7 +211,7 @@ export default function App(): JSX.Element {
   );
 }
 
-function SeatPanel({ player, rematchReadySeats, vertical = false, isTurn = false }: { player?: LobbyPlayer; rematchReadySeats: number[]; vertical?: boolean; isTurn?: boolean }) {
+function SeatPanel({ player, rematchReadySeats, vertical = false, isTurn = false, isSelf = false }: { player?: LobbyPlayer; rematchReadySeats: number[]; vertical?: boolean; isTurn?: boolean; isSelf?: boolean }) {
   if (!player) return <View style={[styles.seatPanel, vertical && styles.seatPanelVertical]}><Text style={styles.meta}>-</Text></View>;
   return (
     <View style={[styles.seatPanel, vertical && styles.seatPanelVertical, isTurn && styles.seatPanelTurn]}>
@@ -219,7 +219,10 @@ function SeatPanel({ player, rematchReadySeats, vertical = false, isTurn = false
       <Text style={styles.meta}>分数: {player.totalScore} {rematchReadySeats.includes(player.seat) ? '✅已准备' : ''}</Text>
       <Text style={styles.meta}>{player.isBot ? '机器人' : '真人'} · {player.online ? '在线' : '离线'} · 定缺: {lackSuitToZh(player.lackSuit)}</Text>
       <View style={styles.meldGroupWrap}>
-        {(player.melds || []).slice(0, 4).map((m, i) => <MeldGroupView key={`${player.seat}-${i}`} meld={m} />)}
+        {(player.melds || [])
+          .filter((m) => isMeldVisible(m, isSelf))
+          .slice(0, 4)
+          .map((m, i) => <MeldGroupView key={`${player.seat}-${i}`} meld={m} />)}
       </View>
     </View>
   );
@@ -294,6 +297,12 @@ function RiverGrid({ tiles, compact = false, highlightCode }: { tiles: string[];
       ))}
     </View>
   );
+}
+
+function isMeldVisible(meld: Meld, isSelf: boolean) {
+  const t = String((meld as any)?.type || '').toLowerCase();
+  const isAnGang = t.includes('angang') || t.includes('an_gang') || t.includes('concealed') || t.includes('concealed_kong') || t.includes('暗杠');
+  return !isAnGang || isSelf;
 }
 
 function inferMeldCount(type: string) {

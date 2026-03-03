@@ -29,7 +29,7 @@ export default function App(): JSX.Element {
   const [actionToast, setActionToast] = useState('');
   const [state, setState] = useState<LobbyViewState>({
     name: '', roomId: '', players: [], connected: false, statusKey: 'idle', yourHandTiles: [], discards: [], yourMelds: [],
-    canSelfHu: false, pendingReaction: null, rematchReadySeats: [], matchFinished: false
+    canSelfHu: false, pendingReaction: null, rematchReadySeats: [], matchFinished: false, scoreFeed: []
   });
 
   const runtime = useMemo(() => createLobbyRuntime({ mode, wsUrl, onState: (patch) => setState((s) => ({ ...s, ...patch })) }), [mode, wsUrl]);
@@ -356,6 +356,9 @@ const styles = StyleSheet.create({
   contentRow: { flexDirection: 'row', alignItems: 'flex-start', columnGap: 12 },
   managePanel: { width: 250, borderWidth: 1, borderColor: '#334155', borderRadius: 12, padding: 10, backgroundColor: '#0b1220' },
   panelTitle: { color: '#f8fafc', fontWeight: '700', marginBottom: 6 },
+  scoreFeedPanel: { marginTop: 10, borderWidth: 1, borderColor: '#334155', borderRadius: 8, padding: 8, backgroundColor: '#111827', maxHeight: 320 },
+  scoreFeedTitle: { color: '#f8fafc', fontWeight: '700', marginBottom: 4 },
+  scoreFeedItem: { color: '#cbd5e1', fontSize: 12, marginTop: 3 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
   input: { borderWidth: 1, borderColor: '#334155', borderRadius: 8, color: '#e2e8f0', padding: 10, marginTop: 8 },
   nameInput: { minWidth: 180 },
@@ -368,7 +371,7 @@ const styles = StyleSheet.create({
   tablePanel: { flex: 1, borderWidth: 1, borderColor: '#334155', borderRadius: 12, padding: 10, backgroundColor: '#0b1220' },
   tableHeader: { marginBottom: 8 },
   tableTitle: { color: '#f8fafc', fontWeight: '700', fontSize: 16 },
-  tableSurface: { borderRadius: 10, padding: 10, backgroundColor: '#0a3a32' },
+  tableSurface: { borderRadius: 10, padding: 10, backgroundColor: '#0a3a32', alignItems: 'stretch' },
   middleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 8, columnGap: 10 },
   riversRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', columnGap: 8, marginTop: 8 },
 
@@ -384,7 +387,7 @@ const styles = StyleSheet.create({
   meldTilesRow: { flexDirection: 'row', gap: 2 },
   meldBadge: { color: '#94a3b8', fontSize: 10, textAlign: 'center', marginTop: 2 },
 
-  centerHud: { width: 640, borderWidth: 1, borderColor: '#1f2937', borderRadius: 8, backgroundColor: '#111827', padding: 8, alignItems: 'center' },
+  centerHud: { width: '92%', maxWidth: 760, alignSelf: 'center', borderWidth: 1, borderColor: '#1f2937', borderRadius: 8, backgroundColor: '#111827', padding: 8, alignItems: 'center' },
   centerTitle: { color: '#f8fafc', fontWeight: '700' },
   centerHudLine: { textAlign: 'center', width: '100%' },
   lastDiscardBadge: { marginTop: 6, borderWidth: 1, borderColor: '#334155', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: '#0b1220' },

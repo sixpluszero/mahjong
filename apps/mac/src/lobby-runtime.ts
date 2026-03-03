@@ -6,6 +6,7 @@ export type LobbyPlayer = { seat: number; name: string; isBot: boolean; ready: b
 export type TableDiscard = { seat: number; tileCode: string; claimed?: boolean };
 export type HandTile = { id: string; code: string; suit: 'wan'|'tiao'|'tong'; rank: number };
 export type PendingReaction = { fromSeat: number; canHu: boolean; canGang: boolean; canPeng: boolean; tileCode: string } | null;
+export type ScoreFeedItem = { id: string; ts: number; text: string };
 
 export type LobbyViewState = {
   name: string; roomId: string; players: LobbyPlayer[]; connected: boolean;
@@ -14,6 +15,7 @@ export type LobbyViewState = {
   gamePhase?: string; turnSeat?: number; yourSeat?: number;
   yourHandTiles: HandTile[]; yourMelds: Meld[]; canSelfHu: boolean; pendingReaction: PendingReaction;
   discards: TableDiscard[]; rematchReadySeats: number[]; matchFinished: boolean;
+  scoreFeed?: ScoreFeedItem[];
 };
 
 export type LobbyRuntime = {
@@ -32,11 +34,54 @@ export function createLobbyRuntime(options: RuntimeOptions): LobbyRuntime {
 }
 
 function createPreviewRuntime(onState: RuntimeOptions['onState']): LobbyRuntime {
+
+  const pushScoreFeed = (text: string) => {
+    if (!text) return;
+    scoreFeed = [{ id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`, ts: Date.now(), text }, ...scoreFeed].slice(0, 80);
+    onState({ scoreFeed });
+  };
+
+  const enrichRoundDelta = (players: LobbyPlayer[]): LobbyPlayer[] => {
+    return players.map((p) => {
+      const prev = prevTotals.get(p.seat);
+      let roundDelta = p.roundDelta;
+      if ((roundDelta == null || roundDelta === 0) && typeof prev === 'number' && prev !== p.totalScore) {
+        roundDelta = p.totalScore - prev;
+      }
+      prevTotals.set(p.seat, p.totalScore);
+      return { ...p, roundDelta };
+    });
+  };
+
+  const tryExtractScoreEventFromMessage = (message: any, players: LobbyPlayer[]) => {
+    const payload = message?.payload || {};
+    const events = Array.isArray(payload.scoreEvents) ? payload.scoreEvents : Array.isArray(payload.events) ? payload.events : [];
+    for (const e of events) {
+      const from = e.fromSeat ?? e.from ?? e.loserSeat;
+      const to = e.toSeat ?? e.to ?? e.winnerSeat;
+      const delta = e.delta ?? e.score ?? e.points;
+      const reason = e.reason ?? e.action ?? e.type ?? '';
+      const fan = e.fanType ?? e.fanName ?? e.fan ?? e.fans;
+      const fromName = players.find((p) => p.seat === from)?.name || `S${from}`;
+      const toName = players.find((p) => p.seat === to)?.name || `S${to}`;
+      const deltaText = typeof delta === 'number' ? `${delta > 0 ? '+' : ''}${delta}` : String(delta || '');
+      pushScoreFeed(`${fromName} 因${reason || '得分结算'} 给 ${toName} ${deltaText}${fan ? `（${fan}）` : ''}`);
+    }
+
+    if (String(message?.type || '').includes('settlement')) {
+      const changed = players.filter((p) => (p.roundDelta ?? 0) !== 0);
+      changed.forEach((p) => {
+        const d = Number(p.roundDelta || 0);
+        pushScoreFeed(`${p.name} 本局 ${d > 0 ? '+' : ''}${d}，总分 ${p.totalScore}`);
+      });
+    }
+  };
+
   return {
     connect() { onState({ connected: true, statusKey: 'preview_connected' }); },
     disconnect() { onState({ connected: false, statusKey: 'preview_disconnected' }); },
     hello(name: string) { onState({ name, statusKey: 'preview_hello', statusArgs: { name: name || 'Player' } }); return true; },
-    createRoom() { onState({ roomId:'ABC123', players:[{seat:0,name:'You',isBot:false,ready:false,online:true,totalScore:0,melds:[]}], gamePhase:'play', turnSeat:0, yourSeat:0, yourHandTiles:[tile('h1','w1','wan',1)], yourMelds:[], canSelfHu:false, pendingReaction:null, discards:[], rematchReadySeats:[], matchFinished:false, statusKey:'preview_room_created' }); return true; },
+    createRoom() { onState({ roomId:'ABC123', players:[{seat:0,name:'You',isBot:false,ready:false,online:true,totalScore:0,melds:[]}], gamePhase:'play', turnSeat:0, yourSeat:0, yourHandTiles:[tile('h1','w1','wan',1)], yourMelds:[], canSelfHu:false, pendingReaction:null, discards:[], rematchReadySeats:[], matchFinished:false, scoreFeed:[], statusKey:'preview_room_created' }); return true; },
     joinRoom(roomId: string) { onState({ roomId: roomId.toUpperCase(), statusKey: 'preview_room_joined' }); return true; },
     addBot() { return true; }, setReady() { return true; }, requestRematch() { return true; },
     discard() { return true; }, setLack() { return true; }, submitExchange() { return true; }, react() { return true; }, selfHu() { return true; }, anGang() { return true; }, buGang() { return true; }
@@ -47,6 +92,8 @@ function createLiveRuntime(wsUrl: string, onState: RuntimeOptions['onState']): L
   let ws: WebSocket | null = null;
   let acknowledgedName = ''; let pendingName = ''; let socketReady = false;
   const model: any = { roomState: null, gameState: null };
+  let scoreFeed: ScoreFeedItem[] = [];
+  const prevTotals = new Map<number, number>();
 
   const send = (type: string, payload: unknown) => {
     if (!ws || ws.readyState !== WebSocket.OPEN) return false;
@@ -66,7 +113,50 @@ function createLiveRuntime(wsUrl: string, onState: RuntimeOptions['onState']): L
     return roomPlayers.filter((p: any) => p.occupied).map((p: any) => {
       const gp = gameBySeat.get(p.seat) || {};
       const lackRaw = gp.lackSuit ?? gp.lackType ?? gp.missingSuit ?? gp.lack ?? p.lackSuit ?? p.lackType ?? p.missingSuit ?? p.lack ?? null;
-      return {
+    
+  const pushScoreFeed = (text: string) => {
+    if (!text) return;
+    scoreFeed = [{ id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`, ts: Date.now(), text }, ...scoreFeed].slice(0, 80);
+    onState({ scoreFeed });
+  };
+
+  const enrichRoundDelta = (players: LobbyPlayer[]): LobbyPlayer[] => {
+    return players.map((p) => {
+      const prev = prevTotals.get(p.seat);
+      let roundDelta = p.roundDelta;
+      if ((roundDelta == null || roundDelta === 0) && typeof prev === 'number' && prev !== p.totalScore) {
+        roundDelta = p.totalScore - prev;
+      }
+      prevTotals.set(p.seat, p.totalScore);
+      return { ...p, roundDelta };
+    });
+  };
+
+  const tryExtractScoreEventFromMessage = (message: any, players: LobbyPlayer[]) => {
+    const payload = message?.payload || {};
+    const events = Array.isArray(payload.scoreEvents) ? payload.scoreEvents : Array.isArray(payload.events) ? payload.events : [];
+    for (const e of events) {
+      const from = e.fromSeat ?? e.from ?? e.loserSeat;
+      const to = e.toSeat ?? e.to ?? e.winnerSeat;
+      const delta = e.delta ?? e.score ?? e.points;
+      const reason = e.reason ?? e.action ?? e.type ?? '';
+      const fan = e.fanType ?? e.fanName ?? e.fan ?? e.fans;
+      const fromName = players.find((p) => p.seat === from)?.name || `S${from}`;
+      const toName = players.find((p) => p.seat === to)?.name || `S${to}`;
+      const deltaText = typeof delta === 'number' ? `${delta > 0 ? '+' : ''}${delta}` : String(delta || '');
+      pushScoreFeed(`${fromName} 因${reason || '得分结算'} 给 ${toName} ${deltaText}${fan ? `（${fan}）` : ''}`);
+    }
+
+    if (String(message?.type || '').includes('settlement')) {
+      const changed = players.filter((p) => (p.roundDelta ?? 0) !== 0);
+      changed.forEach((p) => {
+        const d = Number(p.roundDelta || 0);
+        pushScoreFeed(`${p.name} 本局 ${d > 0 ? '+' : ''}${d}，总分 ${p.totalScore}`);
+      });
+    }
+  };
+
+  return {
         seat: p.seat,
         name: p.name,
         isBot: !!p.isBot,
@@ -78,6 +168,49 @@ function createLiveRuntime(wsUrl: string, onState: RuntimeOptions['onState']): L
         melds: gp.melds || []
       };
     });
+  };
+
+
+  const pushScoreFeed = (text: string) => {
+    if (!text) return;
+    scoreFeed = [{ id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`, ts: Date.now(), text }, ...scoreFeed].slice(0, 80);
+    onState({ scoreFeed });
+  };
+
+  const enrichRoundDelta = (players: LobbyPlayer[]): LobbyPlayer[] => {
+    return players.map((p) => {
+      const prev = prevTotals.get(p.seat);
+      let roundDelta = p.roundDelta;
+      if ((roundDelta == null || roundDelta === 0) && typeof prev === 'number' && prev !== p.totalScore) {
+        roundDelta = p.totalScore - prev;
+      }
+      prevTotals.set(p.seat, p.totalScore);
+      return { ...p, roundDelta };
+    });
+  };
+
+  const tryExtractScoreEventFromMessage = (message: any, players: LobbyPlayer[]) => {
+    const payload = message?.payload || {};
+    const events = Array.isArray(payload.scoreEvents) ? payload.scoreEvents : Array.isArray(payload.events) ? payload.events : [];
+    for (const e of events) {
+      const from = e.fromSeat ?? e.from ?? e.loserSeat;
+      const to = e.toSeat ?? e.to ?? e.winnerSeat;
+      const delta = e.delta ?? e.score ?? e.points;
+      const reason = e.reason ?? e.action ?? e.type ?? '';
+      const fan = e.fanType ?? e.fanName ?? e.fan ?? e.fans;
+      const fromName = players.find((p) => p.seat === from)?.name || `S${from}`;
+      const toName = players.find((p) => p.seat === to)?.name || `S${to}`;
+      const deltaText = typeof delta === 'number' ? `${delta > 0 ? '+' : ''}${delta}` : String(delta || '');
+      pushScoreFeed(`${fromName} 因${reason || '得分结算'} 给 ${toName} ${deltaText}${fan ? `（${fan}）` : ''}`);
+    }
+
+    if (String(message?.type || '').includes('settlement')) {
+      const changed = players.filter((p) => (p.roundDelta ?? 0) !== 0);
+      changed.forEach((p) => {
+        const d = Number(p.roundDelta || 0);
+        pushScoreFeed(`${p.name} 本局 ${d > 0 ? '+' : ''}${d}，总分 ${p.totalScore}`);
+      });
+    }
   };
 
   return {
@@ -101,7 +234,7 @@ function createLiveRuntime(wsUrl: string, onState: RuntimeOptions['onState']): L
               roomId: message.payload?.roomId || '', roomPhase: message.payload?.phase,
               roundNo: message.payload?.roundNo || 0, maxRounds: message.payload?.maxRounds || 0,
               rematchReadySeats: message.payload?.rematchReadySeats || [], matchFinished: !!message.payload?.matchFinished,
-              players: buildPlayers(message.payload?.players || [], model.gameState?.players || []),
+              players: enrichRoundDelta(buildPlayers(message.payload?.players || [], model.gameState?.players || [])),
               statusKey: 'room_synced'
             });
           }
@@ -111,7 +244,9 @@ function createLiveRuntime(wsUrl: string, onState: RuntimeOptions['onState']): L
             const yourHandTiles = (you.hand || []).map((t: any) => ({ id: t.id, code: `${suitPrefix(t.suit)}${t.rank}`, suit: t.suit, rank: t.rank }));
             const discards = (gs.discardPool || []).map((d: any) => ({ seat: d.seat, tileCode: `${suitPrefix(d.tile.suit)}${d.tile.rank}`, claimed: !!d.claimed || !!d.claimedBy || !!d.melded || d.takenBy != null || d.status === 'claimed' }));
             const pending = message.payload?.pendingReaction ? { fromSeat: message.payload.pendingReaction.fromSeat, canHu: !!message.payload.pendingReaction.canHu, canGang: !!message.payload.pendingReaction.canGang, canPeng: !!message.payload.pendingReaction.canPeng, tileCode: `${suitPrefix(message.payload.pendingReaction.tile.suit)}${message.payload.pendingReaction.tile.rank}` } : null;
-            onState({ players: buildPlayers(model.roomState?.players || [], gs.players || []), gamePhase: gs.phase, turnSeat: gs.turnSeat, yourSeat: you.seat, yourHandTiles, discards, remainingTiles: gs.remainingTiles ?? gs.wallRemaining ?? gs.tilesLeft ?? gs.leftTileCount ?? undefined, canSelfHu: !!you.canSelfHu, yourMelds: you.melds || [], pendingReaction: pending });
+            const playersNow = enrichRoundDelta(buildPlayers(model.roomState?.players || [], gs.players || []));
+            onState({ players: playersNow, gamePhase: gs.phase, turnSeat: gs.turnSeat, yourSeat: you.seat, yourHandTiles, discards, remainingTiles: gs.remainingTiles ?? gs.wallRemaining ?? gs.tilesLeft ?? gs.leftTileCount ?? undefined, canSelfHu: !!you.canSelfHu, yourMelds: you.melds || [], pendingReaction: pending, scoreFeed });
+            tryExtractScoreEventFromMessage(message, playersNow);
           }
         } catch { onState({ statusKey: 'error', statusArgs: { detail: 'PARSE_ERROR' } }); }
       });

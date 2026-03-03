@@ -126,6 +126,32 @@ export default function App(): JSX.Element {
           </View>
           <TextInput style={styles.input} value={state.roomId} onChangeText={(roomId) => setState((s) => ({ ...s, roomId: roomId.toUpperCase() }))} placeholder="Room" />
           <View style={styles.row}><Btn text={t(lang, 'create')} onPress={() => runAction('创建房间', () => runtime.createRoom())} /><Btn text={t(lang, 'join')} onPress={() => runAction('加入房间', () => runtime.joinRoom(state.roomId))} /><Btn text={t(lang, 'addBot')} onPress={() => runAction('添加机器人', () => runtime.addBot())} /><Btn text={t(lang, 'ready')} onPress={() => runAction('准备', () => runtime.setReady())} /></View>
+
+          <View style={styles.scoreFeedPanel}>
+            <Text style={styles.scoreFeedTitle}>得分信息流</Text>
+            {(state.scoreFeed || []).length === 0 ? (
+              <Text style={styles.meta}>暂无</Text>
+            ) : (
+              (state.scoreFeed || []).slice(0, 18).map((e) => {
+                const isGain = /\+\d+/.test(e.text);
+                const isLose = /(^|\s)-\d+/.test(e.text);
+                const hasFan = /（.*）/.test(e.text) || /\(.*\)/.test(e.text) || /番/.test(e.text);
+                return (
+                  <Text
+                    key={e.id}
+                    style={[
+                      styles.scoreFeedItem,
+                      isGain && styles.scoreFeedGain,
+                      isLose && styles.scoreFeedLose,
+                      hasFan && styles.scoreFeedFan
+                    ]}
+                  >
+                    • {e.text}
+                  </Text>
+                );
+              })
+            )}
+          </View>
             </View>
 
             <View style={styles.tablePanel}>

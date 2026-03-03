@@ -55,6 +55,8 @@ export default function App(): JSX.Element {
   const anGang = findAnGangCandidates(state.yourHandTiles);
   const buGang = findBuGangCandidates(state.yourHandTiles, state.yourMelds);
   const leaderboard = [...state.players].sort((a, b) => b.totalScore - a.totalScore || a.seat - b.seat);
+  const latestRound = (state.roundHistory || []).slice(-1)[0] || null;
+  const roundDeltaMap = new Map<number, number>((latestRound?.scoreChanges || []).map((x: any) => [x.seat, x.delta]));
 
   const mySeat = state.yourSeat ?? 0;
   const seatMap = {
@@ -129,16 +131,16 @@ export default function App(): JSX.Element {
 
           <View style={styles.scoreFeedPanel}>
             <Text style={styles.scoreFeedTitle}>得分信息流</Text>
-            {(state.scoreFeed || []).length === 0 ? (
+            {buildScoreFeedLines(state, latestRound).length === 0 ? (
               <Text style={styles.meta}>暂无</Text>
             ) : (
-              (state.scoreFeed || []).slice(0, 18).map((e) => {
-                const isGain = /\+\d+/.test(e.text);
-                const isLose = /(^|\s)-\d+/.test(e.text);
-                const hasFan = /（.*）/.test(e.text) || /\(.*\)/.test(e.text) || /番/.test(e.text);
+              buildScoreFeedLines(state, latestRound).slice(0, 18).map((line, idx) => {
+                const isGain = /\+\d+/.test(line);
+                const isLose = /(^|\s)-\d+/.test(line);
+                const hasFan = /（.*）/.test(line) || /\(.*\)/.test(line) || /番/.test(line);
                 return (
                   <Text
-                    key={e.id}
+                    key={`${idx}-${line}`}
                     style={[
                       styles.scoreFeedItem,
                       isGain && styles.scoreFeedGain,
@@ -146,7 +148,7 @@ export default function App(): JSX.Element {
                       hasFan && styles.scoreFeedFan
                     ]}
                   >
-                    • {e.text}
+                    • {line}
                   </Text>
                 );
               })
@@ -196,7 +198,7 @@ export default function App(): JSX.Element {
               <View style={styles.settlementOverlay}>
                 <Text style={styles.settlementTitle}>本局结算</Text>
                 {leaderboard.map((p, i) => {
-                  const delta = Number(p.roundDelta ?? 0);
+                  const delta = Number(roundDeltaMap.get(p.seat) ?? p.roundDelta ?? 0);
                   const deltaText = delta > 0 ? `+${delta}` : `${delta}`;
                   return <Text key={`st-${p.seat}`} style={styles.settlementItem}>{i + 1}. S{p.seat} {p.name}  本局 {deltaText}  ·  总分 {p.totalScore}</Text>;
                 })}
@@ -373,6 +375,41 @@ function tileCodeToZh(code: string) {
   if (suit === 't') return `${rank}条`;
   if (suit === 'b') return `${rank}筒`;
   return code;
+}
+
+
+function buildScoreFeedLines(state: LobbyViewState, latestRound: any) {
+  const players = state.players || [];
+  const nameOf = (seat: number | null | undefined) => {
+    if (seat == null) return '-';
+    return players.find((p) => p.seat === seat)?.name || `S${seat}`;
+  };
+
+  const lines: string[] = [];
+  const events = (state.settlementEvents || []).slice().reverse();
+  for (const e of events) {
+    if (e.type === 'hu') {
+      const fanPart = e.fan != null ? `，${e.fan}番` : '';
+      if (e.winMode === 'zi_mo') {
+        lines.push(`${nameOf(e.winnerSeat)} 自摸，每家 ${e.amount} 分${fanPart}`);
+      } else {
+        lines.push(`${nameOf(e.winnerSeat)} 胡 ${nameOf(e.fromSeat)}，${e.amount} 分${fanPart}`);
+      }
+    } else if (e.type === 'gang') {
+      const gType = e.gangType === 'an_gang' ? '暗杠' : e.gangType === 'bu_gang' ? '补杠' : '明杠';
+      if (e.fromSeat == null) {
+        lines.push(`${nameOf(e.winnerSeat)} ${gType}，每家 ${e.amount} 分`);
+      } else {
+        lines.push(`${nameOf(e.winnerSeat)} ${gType}，${nameOf(e.fromSeat)} 支付 ${e.amount} 分`);
+      }
+    }
+  }
+
+  if (latestRound?.scoreChanges?.length) {
+    lines.unshift(`本局汇总：${latestRound.scoreChanges.map((x: any) => `${x.name} ${x.delta >= 0 ? '+' : ''}${x.delta}`).join(' | ')}`);
+  }
+
+  return lines;
 }
 
 const styles = StyleSheet.create({

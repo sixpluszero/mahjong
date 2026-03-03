@@ -248,11 +248,8 @@ function CenterHUD({ turnSeat, roomPhase, roundNo, maxRounds, statusKey, statusD
   return (
     <View style={styles.centerHud}>
       <Text style={styles.centerTitle}>局况</Text>
-      <Text style={styles.meta}>Turn: {turnSeat ?? '-'}</Text>
-      <Text style={styles.meta}>Room: {roomPhase || '-'}</Text>
-      <Text style={styles.meta}>Round: {roundNo ?? 0}/{maxRounds ?? 0}</Text>
-      <Text style={styles.meta}>剩余牌: {remainingTiles ?? '-'}</Text>
-      <Text style={styles.meta}>State: {statusKey}{statusDetail ? ` (${statusDetail})` : ''}</Text>
+      <Text style={styles.meta}>回合: {turnSeat ?? '-'} · 局面: {roomPhase || '-'} · 局数: {roundNo ?? 0}/{maxRounds ?? 0}</Text>
+      <Text style={styles.meta}>剩余牌: {remainingTiles ?? '-'} · 状态: {statusKey}{statusDetail ? ` (${statusDetail})` : ''}</Text>
       {lastDiscard ? (
         <View style={[styles.lastDiscardBadge, flash && styles.lastDiscardBadgeFlash]}>
           <Text style={styles.lastDiscardText}>{lastDiscardPlayerName || `S${lastDiscard.seat}`} 打出 {tileCodeToZh(lastDiscard.tileCode)}</Text>
@@ -381,7 +378,7 @@ const styles = StyleSheet.create({
   meldTilesRow: { flexDirection: 'row', gap: 2 },
   meldBadge: { color: '#94a3b8', fontSize: 10, textAlign: 'center', marginTop: 2 },
 
-  centerHud: { width: 250, borderWidth: 1, borderColor: '#1f2937', borderRadius: 8, backgroundColor: '#111827', padding: 8, alignItems: 'center' },
+  centerHud: { width: 420, borderWidth: 1, borderColor: '#1f2937', borderRadius: 8, backgroundColor: '#111827', padding: 8, alignItems: 'center' },
   centerTitle: { color: '#f8fafc', fontWeight: '700' },
   lastDiscardBadge: { marginTop: 6, borderWidth: 1, borderColor: '#334155', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: '#0b1220' },
   lastDiscardBadgeFlash: { borderColor: '#f59e0b', backgroundColor: '#3f2a00' },

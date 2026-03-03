@@ -388,7 +388,7 @@ const styles = StyleSheet.create({
   lastDiscardBadgeFlash: { borderColor: '#f59e0b', backgroundColor: '#3f2a00' },
   lastDiscardText: { color: '#fef3c7', fontWeight: '700', fontSize: 12 },
 
-  riversWrap: { width: '75%', alignSelf: 'center', marginTop: 8, borderWidth: 1, borderColor: '#14532d', borderRadius: 8, padding: 8, backgroundColor: '#064e3b' },
+  riversWrap: { width: '60%', alignSelf: 'center', marginTop: 8, borderWidth: 1, borderColor: '#14532d', borderRadius: 8, padding: 8, backgroundColor: '#064e3b' },
   bottomSeatWrap: { marginTop: 8, alignItems: 'center' },
   riverGrid: { alignItems: 'center', marginVertical: 2 },
   riverGridCompact: { width: '48%' },

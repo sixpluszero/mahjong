@@ -170,9 +170,11 @@ export default function App(): JSX.Element {
             {(inSettlement || state.matchFinished) ? (
               <View style={styles.settlementOverlay}>
                 <Text style={styles.settlementTitle}>本局结算</Text>
-                {leaderboard.map((p, i) => (
-                  <Text key={`st-${p.seat}`} style={styles.settlementItem}>{i + 1}. S{p.seat} {p.name}  总分 {p.totalScore}</Text>
-                ))}
+                {leaderboard.map((p, i) => {
+                  const delta = Number(p.roundDelta ?? 0);
+                  const deltaText = delta > 0 ? `+${delta}` : `${delta}`;
+                  return <Text key={`st-${p.seat}`} style={styles.settlementItem}>{i + 1}. S{p.seat} {p.name}  本局 {deltaText}  ·  总分 {p.totalScore}</Text>;
+                })}
                 <View style={styles.row}>
                   <Btn text={t(lang, 'rematch')} onPress={() => run(() => runtime.requestRematch())} />
                 </View>

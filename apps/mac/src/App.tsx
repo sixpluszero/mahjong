@@ -167,6 +167,18 @@ export default function App(): JSX.Element {
             {inLack ? <View style={styles.row}><Btn text={t(lang, 'lackWan')} onPress={() => run(() => runtime.setLack('wan'))} /><Btn text={t(lang, 'lackTiao')} onPress={() => run(() => runtime.setLack('tiao'))} /><Btn text={t(lang, 'lackTong')} onPress={() => run(() => runtime.setLack('tong'))} /></View> : null}
             {inSettlement ? <View style={styles.row}><Btn text={t(lang, 'rematch')} onPress={() => run(() => runtime.requestRematch())} /></View> : null}
 
+            {(inSettlement || state.matchFinished) ? (
+              <View style={styles.settlementOverlay}>
+                <Text style={styles.settlementTitle}>本局结算</Text>
+                {leaderboard.map((p, i) => (
+                  <Text key={`st-${p.seat}`} style={styles.settlementItem}>{i + 1}. S{p.seat} {p.name}  总分 {p.totalScore}</Text>
+                ))}
+                <View style={styles.row}>
+                  <Btn text={t(lang, 'rematch')} onPress={() => run(() => runtime.requestRematch())} />
+                </View>
+              </View>
+            ) : null}
+
             <View style={styles.handArea}>
               <View style={[styles.tileRow, !(canDiscard || inExchange) && styles.tileRowDisabled]}>{state.yourHandTiles.map((tile) => <Tile key={tile.id} code={tile.code} selected={exchangeSelected.includes(tile.id)} active={canDiscard || inExchange} onPress={() => onTilePress(tile)} />)}</View>
             </View>
@@ -303,6 +315,9 @@ const styles = StyleSheet.create({
   countdownBarDanger: { backgroundColor: '#ef4444' },
   actionBar: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
   handArea: { marginTop: 10, borderTopWidth: 1, borderTopColor: '#334155', paddingTop: 10 },
+  settlementOverlay: { marginTop: 10, borderWidth: 1, borderColor: '#7c3aed', borderRadius: 10, padding: 10, backgroundColor: '#1f1147' },
+  settlementTitle: { color: '#f5d0fe', fontWeight: '800', fontSize: 16 },
+  settlementItem: { color: '#e9d5ff', marginTop: 4 },
 
   panel: { marginTop: 10, borderWidth: 1, borderColor: '#334155', borderRadius: 10, padding: 8, backgroundColor: '#0b1220' },
   title: { color: '#f8fafc', fontWeight: '700' },

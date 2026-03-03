@@ -177,8 +177,8 @@ export default function App(): JSX.Element {
               </View>
             ) : null}
 
-            {!state.pendingReaction && canDiscard && anGang.map((x) => <View key={x.id} style={styles.row}><Btn text={`暗杠 ${x.code}`} onPress={() => runAction('暗杠', () => runtime.anGang(x.id))} /></View>)}
-            {!state.pendingReaction && canDiscard && buGang.map((x) => <View key={x.id} style={styles.row}><Btn text={`补杠 ${x.code}`} onPress={() => runAction('补杠', () => runtime.buGang(x.id))} /></View>)}
+            {!state.pendingReaction && canDiscard && anGang.map((x) => <View key={x.id} style={styles.row}><Btn text={`暗杠 ${tileCodeToZh(x.code)}`} onPress={() => runAction('暗杠', () => runtime.anGang(x.id))} /></View>)}
+            {!state.pendingReaction && canDiscard && buGang.map((x) => <View key={x.id} style={styles.row}><Btn text={`补杠 ${tileCodeToZh(x.code)}`} onPress={() => runAction('补杠', () => runtime.buGang(x.id))} /></View>)}
 
             {inExchange ? <View style={styles.row}><Text style={styles.meta}>换三张 {exchangeSelected.length}/3</Text><Btn text={t(lang, 'submitExchange')} onPress={() => runAction('提交换三张', () => runtime.submitExchange(exchangeSelected))} /></View> : null}
             {inLack ? <View style={styles.row}><Btn text={t(lang, 'lackWan')} onPress={() => runAction('定缺万', () => runtime.setLack('wan'))} /><Btn text={t(lang, 'lackTiao')} onPress={() => runAction('定缺条', () => runtime.setLack('tiao'))} /><Btn text={t(lang, 'lackTong')} onPress={() => runAction('定缺筒', () => runtime.setLack('tong'))} /></View> : null}
@@ -204,8 +204,7 @@ export default function App(): JSX.Element {
             </View>
           </View>
 
-          <View style={styles.panel}><Text style={styles.title}>{t(lang, 'scoreboard')}</Text>{leaderboard.map((p, i) => <Text key={p.seat} style={styles.meta}>{i + 1}. S{p.seat} {p.name} {p.totalScore} {state.rematchReadySeats.includes(p.seat) ? '✅' : ''}</Text>)}</View>
-          <View style={styles.panel}><Text style={styles.title}>{t(lang, 'melds')}</Text>{state.players.length === 0 ? <Text style={styles.meta}>-</Text> : state.players.map((p) => <Text key={p.seat} style={styles.meta}>S{p.seat} {p.name}: {renderMelds(p.melds)}</Text>)}</View>
+
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -217,7 +216,8 @@ function SeatPanel({ player, rematchReadySeats, vertical = false, isTurn = false
   return (
     <View style={[styles.seatPanel, vertical && styles.seatPanelVertical, isTurn && styles.seatPanelTurn]}>
       <Text style={[styles.seatName, isTurn && styles.seatNameTurn]}>S{player.seat} {player.name}{isTurn ? ' ●' : ''}</Text>
-      <Text style={styles.meta}>Score: {player.totalScore} {rematchReadySeats.includes(player.seat) ? '✅' : ''}</Text>
+      <Text style={styles.meta}>分数: {player.totalScore} {rematchReadySeats.includes(player.seat) ? '✅已准备' : ''}</Text>
+      <Text style={styles.meta}>{player.isBot ? '机器人' : '真人'} · {player.online ? '在线' : '离线'}</Text>
       <View style={styles.meldGroupWrap}>
         {(player.melds || []).slice(0, 4).map((m, i) => <MeldGroupView key={`${player.seat}-${i}`} meld={m} />)}
       </View>
@@ -309,7 +309,6 @@ function inferMeldBadge(type: string) {
   return '组合';
 }
 
-function renderMelds(melds: Meld[]) { if (!melds || melds.length === 0) return '-'; return melds.map((m) => `${m.type}:${suitPrefix(m.tile.suit)}${m.tile.rank}`).join('、'); }
 function findAnGangCandidates(hand: HandTile[]) { const m = new Map<string, HandTile[]>(); for (const t of hand) { const k = `${t.suit}-${t.rank}`; m.set(k, [...(m.get(k) || []), t]); } return [...m.values()].filter((v) => v.length >= 4).map((v) => v[0]); }
 function findBuGangCandidates(hand: HandTile[], melds: Meld[]) { const keys = new Set((melds || []).filter((m) => m.type === 'peng').map((m) => `${m.tile.suit}-${m.tile.rank}`)); return hand.filter((t) => keys.has(`${t.suit}-${t.rank}`)); }
 function suitPrefix(suit: string) { if (suit === 'wan') return 'w'; if (suit === 'tong') return 'b'; return 't'; }

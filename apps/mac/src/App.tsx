@@ -159,7 +159,7 @@ function MeldGroupView({ meld }: { meld: Meld }) {
   const baseCode = `${suitPrefix(meld.tile.suit)}${meld.tile.rank}`;
   const count = meld.type === 'gang' ? 4 : 3;
   const tiles = Array.from({ length: count }, () => baseCode);
-  const badge = meld.type === 'peng' ? '碰' : meld.type === 'gang' ? '杠' : meld.type === 'chi' ? '吃' : meld.type;
+  const badge = meld.type === 'peng' ? '碰' : meld.type === 'gang' ? '杠' : '组合';
 
   return (
     <View style={styles.meldGroup}>

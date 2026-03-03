@@ -20,11 +20,11 @@
 - [x] Lack suit selection controls
 - [x] Reaction controls (碰/杠/胡/过)
 - [x] Self-hu / an-gang / bu-gang controls
-- [x] Show per-player melds (self + others)
+- [x] Show per-player peng/gang groups (self + others)
 - [x] Basic table preview (turn seat / discards / hand)
 
 ## Phase 4 (Next hardening)
-- [ ] Replace text-only meld summaries with tile-group visuals
+- [ ] Replace text-only peng/gang summaries with tile-group visuals
 - [ ] Add settlement summary panel polish (per-round breakdown UI)
 - [ ] Add reconnect/resume edge-case polish + explicit transient states
 - [ ] Add focused mac UI regression checklist for full round flow
@@ -42,7 +42,7 @@
   - lack suit choose
   - react (hu/gang/peng/pass)
   - self-hu / an-gang / bu-gang
-- Scoreboard and player meld summary are displayed
+- Scoreboard and player peng/gang summary are displayed
 - Bilingual UI is available
 
 ### Known limitations

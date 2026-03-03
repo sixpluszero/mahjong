@@ -314,7 +314,7 @@ function findAnGangCandidates(hand: HandTile[]) { const m = new Map<string, Hand
 function findBuGangCandidates(hand: HandTile[], melds: Meld[]) { const keys = new Set((melds || []).filter((m) => m.type === 'peng').map((m) => `${m.tile.suit}-${m.tile.rank}`)); return hand.filter((t) => keys.has(`${t.suit}-${t.rank}`)); }
 function suitPrefix(suit: string) { if (suit === 'wan') return 'w'; if (suit === 'tong') return 'b'; return 't'; }
 function findPlayerBySeat(players: LobbyPlayer[], seat: number) { return players.find((p) => p.seat === seat); }
-function groupDiscardsBySeat(discards: { seat: number; tileCode: string }[]) { const map: Record<number, string[]> = {}; for (const d of discards) { if (!map[d.seat]) map[d.seat] = []; map[d.seat].push(d.tileCode); } return map; }
+function groupDiscardsBySeat(discards: { seat: number; tileCode: string; claimed?: boolean }[]) { const map: Record<number, string[]> = {}; for (const d of discards) { if (d.claimed) continue; if (!map[d.seat]) map[d.seat] = []; map[d.seat].push(d.tileCode); } return map; }
 
 function Btn({ text, onPress, disabled = false }: { text: string; onPress: () => void; disabled?: boolean }) { return <Pressable style={[styles.btn, disabled && styles.btnDisabled]} disabled={disabled} onPress={onPress}><Text style={[styles.btnText, disabled && styles.btnTextDisabled]}>{text}</Text></Pressable>; }
 function Tile({ code, small = false, selected = false, active = false, highlighted = false, onPress }: { code: string; small?: boolean; selected?: boolean; active?: boolean; highlighted?: boolean; onPress?: () => void }) {

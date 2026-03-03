@@ -3,7 +3,7 @@ import { reduceServerMessage } from '../../../packages/client-core/src/web-entry
 export type LobbyStatusKey = 'idle'|'preview_connected'|'preview_disconnected'|'preview_hello'|'preview_room_created'|'preview_room_joined'|'connecting'|'connected'|'disconnected'|'room_synced'|'error';
 export type Meld = { type: string; tile: { suit: 'wan'|'tiao'|'tong'; rank: number } };
 export type LobbyPlayer = { seat: number; name: string; isBot: boolean; ready: boolean; online: boolean; totalScore: number; roundDelta?: number; melds: Meld[] };
-export type TableDiscard = { seat: number; tileCode: string };
+export type TableDiscard = { seat: number; tileCode: string; claimed?: boolean };
 export type HandTile = { id: string; code: string; suit: 'wan'|'tiao'|'tong'; rank: number };
 export type PendingReaction = { fromSeat: number; canHu: boolean; canGang: boolean; canPeng: boolean; tileCode: string } | null;
 
@@ -97,7 +97,7 @@ function createLiveRuntime(wsUrl: string, onState: RuntimeOptions['onState']): L
           if (message.type === 'game_state') {
             const you = message.payload?.you || {}; const gs = message.payload?.state || {};
             const yourHandTiles = (you.hand || []).map((t: any) => ({ id: t.id, code: `${suitPrefix(t.suit)}${t.rank}`, suit: t.suit, rank: t.rank }));
-            const discards = (gs.discardPool || []).map((d: any) => ({ seat: d.seat, tileCode: `${suitPrefix(d.tile.suit)}${d.tile.rank}` }));
+            const discards = (gs.discardPool || []).map((d: any) => ({ seat: d.seat, tileCode: `${suitPrefix(d.tile.suit)}${d.tile.rank}`, claimed: !!d.claimed || !!d.claimedBy || !!d.melded || d.takenBy != null || d.status === 'claimed' }));
             const pending = message.payload?.pendingReaction ? { fromSeat: message.payload.pendingReaction.fromSeat, canHu: !!message.payload.pendingReaction.canHu, canGang: !!message.payload.pendingReaction.canGang, canPeng: !!message.payload.pendingReaction.canPeng, tileCode: `${suitPrefix(message.payload.pendingReaction.tile.suit)}${message.payload.pendingReaction.tile.rank}` } : null;
             onState({ players: buildPlayers(model.roomState?.players || [], gs.players || []), gamePhase: gs.phase, turnSeat: gs.turnSeat, yourSeat: you.seat, yourHandTiles, discards, remainingTiles: gs.remainingTiles ?? gs.wallRemaining ?? gs.tilesLeft ?? gs.leftTileCount ?? undefined, canSelfHu: !!you.canSelfHu, yourMelds: you.melds || [], pendingReaction: pending });
           }

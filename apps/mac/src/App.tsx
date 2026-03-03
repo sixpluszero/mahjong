@@ -217,7 +217,9 @@ export default function App(): JSX.Element {
                       );
                     })}
                   </View>
-                ) : null}
+                ) : (
+                  <Text style={styles.revealItem}>（未收到结算亮牌数据，确认服务端已重启到最新代码）</Text>
+                )}
               </View>
             ) : null}
 

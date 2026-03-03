@@ -26,6 +26,7 @@ export default function App(): JSX.Element {
   const [busy, setBusy] = useState(false);
   const [exchangeSelected, setExchangeSelected] = useState<string[]>([]);
   const [lastDiscardFlash, setLastDiscardFlash] = useState(false);
+  const [actionToast, setActionToast] = useState('');
   const [state, setState] = useState<LobbyViewState>({
     name: '', roomId: '', players: [], connected: false, statusKey: 'idle', yourHandTiles: [], discards: [], yourMelds: [],
     canSelfHu: false, pendingReaction: null, rematchReadySeats: [], matchFinished: false
@@ -79,6 +80,17 @@ export default function App(): JSX.Element {
     try { fn(); } finally { setTimeout(() => setBusy(false), 120); }
   };
 
+  const runAction = (label: string, fn: () => boolean) => {
+    run(() => {
+      const ok = fn();
+      if (ok) {
+        setActionToast(label);
+        setTimeout(() => setActionToast(''), 1200);
+      }
+      return ok;
+    });
+  };
+
   const genRandomName = () => {
     const p = ['雀友', '牌侠', '听牌王', '川麻客', '杠上花'];
     const q = ['东风', '南风', '西风', '北风', '红中', '发财', '白板'];
@@ -107,7 +119,7 @@ export default function App(): JSX.Element {
             <Btn text={t(lang, 'hello')} onPress={() => run(() => runtime.hello(state.name))} />
           </View>
           <TextInput style={styles.input} value={state.roomId} onChangeText={(roomId) => setState((s) => ({ ...s, roomId: roomId.toUpperCase() }))} placeholder="Room" />
-          <View style={styles.row}><Btn text={t(lang, 'create')} onPress={() => run(() => runtime.createRoom())} /><Btn text={t(lang, 'join')} onPress={() => run(() => runtime.joinRoom(state.roomId))} /><Btn text={t(lang, 'addBot')} onPress={() => run(() => runtime.addBot())} /><Btn text={t(lang, 'ready')} onPress={() => run(() => runtime.setReady())} /></View>
+          <View style={styles.row}><Btn text={t(lang, 'create')} onPress={() => runAction('创建房间', () => runtime.createRoom())} /><Btn text={t(lang, 'join')} onPress={() => runAction('加入房间', () => runtime.joinRoom(state.roomId))} /><Btn text={t(lang, 'addBot')} onPress={() => runAction('添加机器人', () => runtime.addBot())} /><Btn text={t(lang, 'ready')} onPress={() => runAction('准备', () => runtime.setReady())} /></View>
 
           <View style={styles.tablePanel}>
             <View style={styles.tableHeader}>
@@ -146,26 +158,27 @@ export default function App(): JSX.Element {
                 {actionCountdown > 0 ? <View style={[styles.countdownBar, actionCountdown <= 3 ? styles.countdownBarDanger : (actionCountdown <= 5 ? styles.countdownBarWarn : null), { width: `${Math.max(8, Math.round((actionCountdown / 8) * 100))}%` }]} /> : null}
                 {state.pendingReaction ? (
                   <View style={styles.actionBar}>
-                    {state.pendingReaction.canHu && <Btn text={t(lang, 'reactHu')} onPress={() => run(() => runtime.react('hu'))} />}
-                    {state.pendingReaction.canGang && <Btn text={t(lang, 'reactGang')} onPress={() => run(() => runtime.react('gang'))} />}
-                    {state.pendingReaction.canPeng && <Btn text={t(lang, 'reactPeng')} onPress={() => run(() => runtime.react('peng'))} />}
-                    <Btn text={t(lang, 'reactPass')} onPress={() => run(() => runtime.react('pass'))} />
+                    {state.pendingReaction.canHu && <Btn text={t(lang, 'reactHu')} onPress={() => runAction('胡', () => runtime.react('hu'))} />}
+                    {state.pendingReaction.canGang && <Btn text={t(lang, 'reactGang')} onPress={() => runAction('杠', () => runtime.react('gang'))} />}
+                    {state.pendingReaction.canPeng && <Btn text={t(lang, 'reactPeng')} onPress={() => runAction('碰', () => runtime.react('peng'))} />}
+                    <Btn text={t(lang, 'reactPass')} onPress={() => runAction('过', () => runtime.react('pass'))} />
                   </View>
                 ) : (
                   <View style={styles.actionBar}>
-                    {canDiscard && state.canSelfHu ? <Btn text={t(lang, 'selfHu')} onPress={() => run(() => runtime.selfHu())} /> : null}
-                    {canDiscard && !state.canSelfHu ? <Text style={styles.meta}>请先出牌</Text> : null}
+                    <Btn text={t(lang, 'selfHu')} disabled={!(canDiscard && state.canSelfHu)} onPress={() => runAction('自摸胡', () => runtime.selfHu())} />
+                    <Btn text={t(lang, 'reactGang')} disabled={!canDiscard} onPress={() => false} />
+                    {!canDiscard ? <Text style={styles.meta}>当前不可操作：未到你回合</Text> : null}
                   </View>
                 )}
               </View>
             ) : null}
 
-            {!state.pendingReaction && canDiscard && anGang.map((x) => <View key={x.id} style={styles.row}><Btn text={`暗杠 ${x.code}`} onPress={() => run(() => runtime.anGang(x.id))} /></View>)}
-            {!state.pendingReaction && canDiscard && buGang.map((x) => <View key={x.id} style={styles.row}><Btn text={`补杠 ${x.code}`} onPress={() => run(() => runtime.buGang(x.id))} /></View>)}
+            {!state.pendingReaction && canDiscard && anGang.map((x) => <View key={x.id} style={styles.row}><Btn text={`暗杠 ${x.code}`} onPress={() => runAction('暗杠', () => runtime.anGang(x.id))} /></View>)}
+            {!state.pendingReaction && canDiscard && buGang.map((x) => <View key={x.id} style={styles.row}><Btn text={`补杠 ${x.code}`} onPress={() => runAction('补杠', () => runtime.buGang(x.id))} /></View>)}
 
-            {inExchange ? <View style={styles.row}><Text style={styles.meta}>换三张 {exchangeSelected.length}/3</Text><Btn text={t(lang, 'submitExchange')} onPress={() => run(() => runtime.submitExchange(exchangeSelected))} /></View> : null}
-            {inLack ? <View style={styles.row}><Btn text={t(lang, 'lackWan')} onPress={() => run(() => runtime.setLack('wan'))} /><Btn text={t(lang, 'lackTiao')} onPress={() => run(() => runtime.setLack('tiao'))} /><Btn text={t(lang, 'lackTong')} onPress={() => run(() => runtime.setLack('tong'))} /></View> : null}
-            {inSettlement ? <View style={styles.row}><Btn text={t(lang, 'rematch')} onPress={() => run(() => runtime.requestRematch())} /></View> : null}
+            {inExchange ? <View style={styles.row}><Text style={styles.meta}>换三张 {exchangeSelected.length}/3</Text><Btn text={t(lang, 'submitExchange')} onPress={() => runAction('提交换三张', () => runtime.submitExchange(exchangeSelected))} /></View> : null}
+            {inLack ? <View style={styles.row}><Btn text={t(lang, 'lackWan')} onPress={() => runAction('定缺万', () => runtime.setLack('wan'))} /><Btn text={t(lang, 'lackTiao')} onPress={() => runAction('定缺条', () => runtime.setLack('tiao'))} /><Btn text={t(lang, 'lackTong')} onPress={() => runAction('定缺筒', () => runtime.setLack('tong'))} /></View> : null}
+            {inSettlement ? <View style={styles.row}><Btn text={t(lang, 'rematch')} onPress={() => runAction('再来一局', () => runtime.requestRematch())} /></View> : null}
 
             {(inSettlement || state.matchFinished) ? (
               <View style={styles.settlementOverlay}>
@@ -176,11 +189,12 @@ export default function App(): JSX.Element {
                   return <Text key={`st-${p.seat}`} style={styles.settlementItem}>{i + 1}. S{p.seat} {p.name}  本局 {deltaText}  ·  总分 {p.totalScore}</Text>;
                 })}
                 <View style={styles.row}>
-                  <Btn text={t(lang, 'rematch')} onPress={() => run(() => runtime.requestRematch())} />
+                  <Btn text={t(lang, 'rematch')} onPress={() => runAction('再来一局', () => runtime.requestRematch())} />
                 </View>
               </View>
             ) : null}
 
+            {actionToast ? <View style={styles.actionToast}><Text style={styles.actionToastText}>{actionToast}</Text></View> : null}
             <View style={styles.handArea}>
               <View style={[styles.tileRow, !(canDiscard || inExchange) && styles.tileRowDisabled]}>{state.yourHandTiles.map((tile) => <Tile key={tile.id} code={tile.code} selected={exchangeSelected.includes(tile.id)} active={canDiscard || inExchange} onPress={() => onTilePress(tile)} />)}</View>
             </View>
@@ -244,9 +258,28 @@ function DiscardRivers({ discardsBySeat, mySeat }: { discardsBySeat: Record<numb
   const rightSeat = (mySeat + 3) % 4;
   return (
     <View style={styles.riversWrap}>
-      <View style={styles.riverRow}>{(discardsBySeat[topSeat] || []).slice(-12).map((c, i) => <MiniTile key={`t-${i}`} code={c} />)}</View>
-      <View style={styles.riverMiddle}><View style={[styles.riverCol, { alignItems: 'flex-start' }]}>{(discardsBySeat[leftSeat] || []).slice(-10).map((c, i) => <MiniTile key={`l-${i}`} code={c} />)}</View><View style={[styles.riverCol, { alignItems: 'flex-end' }]}>{(discardsBySeat[rightSeat] || []).slice(-10).map((c, i) => <MiniTile key={`r-${i}`} code={c} />)}</View></View>
-      <View style={styles.riverRow}>{(discardsBySeat[mySeat] || []).slice(-12).map((c, i) => <MiniTile key={`b-${i}`} code={c} />)}</View>
+      <RiverGrid tiles={discardsBySeat[topSeat] || []} />
+      <View style={styles.riverMiddle}>
+        <RiverGrid tiles={discardsBySeat[leftSeat] || []} compact />
+        <RiverGrid tiles={discardsBySeat[rightSeat] || []} compact />
+      </View>
+      <RiverGrid tiles={discardsBySeat[mySeat] || []} />
+    </View>
+  );
+}
+
+function RiverGrid({ tiles, compact = false }: { tiles: string[]; compact?: boolean }) {
+  const perRow = compact ? 5 : 6;
+  const rows = Math.max(2, Math.ceil(tiles.length / perRow));
+  const padded = [...tiles];
+  while (padded.length < rows * perRow) padded.push('');
+  return (
+    <View style={[styles.riverGrid, compact && styles.riverGridCompact]}>
+      {Array.from({ length: rows }).map((_, r) => (
+        <View key={r} style={styles.riverRow}>
+          {padded.slice(r * perRow, (r + 1) * perRow).map((c, i) => c ? <MiniTile key={`${r}-${i}-${c}`} code={c} /> : <View key={`${r}-${i}-x`} style={styles.riverPlaceholder} />)}
+        </View>
+      ))}
     </View>
   );
 }
@@ -258,7 +291,7 @@ function suitPrefix(suit: string) { if (suit === 'wan') return 'w'; if (suit ===
 function findPlayerBySeat(players: LobbyPlayer[], seat: number) { return players.find((p) => p.seat === seat); }
 function groupDiscardsBySeat(discards: { seat: number; tileCode: string }[]) { const map: Record<number, string[]> = {}; for (const d of discards) { if (!map[d.seat]) map[d.seat] = []; map[d.seat].push(d.tileCode); } return map; }
 
-function Btn({ text, onPress }: { text: string; onPress: () => void }) { return <Pressable style={styles.btn} onPress={onPress}><Text style={styles.btnText}>{text}</Text></Pressable>; }
+function Btn({ text, onPress, disabled = false }: { text: string; onPress: () => void; disabled?: boolean }) { return <Pressable style={[styles.btn, disabled && styles.btnDisabled]} disabled={disabled} onPress={onPress}><Text style={[styles.btnText, disabled && styles.btnTextDisabled]}>{text}</Text></Pressable>; }
 function Tile({ code, small = false, selected = false, active = false, onPress }: { code: string; small?: boolean; selected?: boolean; active?: boolean; onPress?: () => void }) {
   const pure = code.includes('@') ? code.split('@')[0] : code;
   const suit = pure[0]; const rank = Number(pure.slice(1)); const { label, color } = meta(suit);
@@ -276,6 +309,8 @@ const styles = StyleSheet.create({
   nameInput: { minWidth: 180 },
   btn: { backgroundColor: '#1d4ed8', paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8 },
   btnText: { color: '#fff', fontWeight: '600' },
+  btnDisabled: { backgroundColor: '#334155' },
+  btnTextDisabled: { color: '#94a3b8' },
   meta: { color: '#cbd5e1', marginTop: 4, fontSize: 12 },
 
   tablePanel: { marginTop: 12, borderWidth: 1, borderColor: '#334155', borderRadius: 12, padding: 10, backgroundColor: '#0b1220' },
@@ -302,9 +337,11 @@ const styles = StyleSheet.create({
 
   riversWrap: { marginTop: 8, borderWidth: 1, borderColor: '#14532d', borderRadius: 8, padding: 8, backgroundColor: '#064e3b' },
   bottomSeatWrap: { marginTop: 8, alignItems: 'center' },
-  riverRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, minHeight: 30, justifyContent: 'center' },
+  riverGrid: { alignItems: 'center', marginVertical: 2 },
+  riverGridCompact: { width: '48%' },
+  riverRow: { flexDirection: 'row', gap: 4, minHeight: 30, justifyContent: 'center' },
   riverMiddle: { flexDirection: 'row', justifyContent: 'space-between', marginVertical: 6 },
-  riverCol: { width: '48%', minHeight: 30, flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+  riverPlaceholder: { width: 24, height: 34, borderRadius: 5, borderWidth: 1, borderColor: '#065f46', backgroundColor: '#065f46' },
 
   actionBarWrap: { marginTop: 10, backgroundColor: '#111827', borderRadius: 8, padding: 8, borderWidth: 1, borderColor: '#334155' },
   actionBarHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
@@ -317,6 +354,8 @@ const styles = StyleSheet.create({
   countdownBarDanger: { backgroundColor: '#ef4444' },
   actionBar: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
   handArea: { marginTop: 10, borderTopWidth: 1, borderTopColor: '#334155', paddingTop: 10 },
+  actionToast: { alignSelf: 'center', marginTop: 8, backgroundColor: '#312e81', borderColor: '#818cf8', borderWidth: 1, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999 },
+  actionToastText: { color: '#e0e7ff', fontWeight: '700' },
   settlementOverlay: { marginTop: 10, borderWidth: 1, borderColor: '#7c3aed', borderRadius: 10, padding: 10, backgroundColor: '#1f1147' },
   settlementTitle: { color: '#f5d0fe', fontWeight: '800', fontSize: 16 },
   settlementItem: { color: '#e9d5ff', marginTop: 4 },

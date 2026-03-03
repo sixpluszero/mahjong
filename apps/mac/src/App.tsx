@@ -25,6 +25,7 @@ export default function App(): JSX.Element {
   const [wsUrl, setWsUrl] = useState('ws://127.0.0.1:8787');
   const [busy, setBusy] = useState(false);
   const [exchangeSelected, setExchangeSelected] = useState<string[]>([]);
+  const [lastDiscardFlash, setLastDiscardFlash] = useState(false);
   const [state, setState] = useState<LobbyViewState>({
     name: '', roomId: '', players: [], connected: false, statusKey: 'idle', yourHandTiles: [], discards: [], yourMelds: [],
     canSelfHu: false, pendingReaction: null, rematchReadySeats: [], matchFinished: false
@@ -63,6 +64,14 @@ export default function App(): JSX.Element {
   };
 
   const discardsBySeat = groupDiscardsBySeat(state.discards);
+  const lastDiscard = state.discards.length > 0 ? state.discards[state.discards.length - 1] : null;
+
+  useEffect(() => {
+    if (!lastDiscard) return;
+    setLastDiscardFlash(true);
+    const timer = setTimeout(() => setLastDiscardFlash(false), 1200);
+    return () => clearTimeout(timer);
+  }, [lastDiscard?.seat, lastDiscard?.tileCode, state.discards.length]);
 
   const run = (fn: () => boolean) => {
     if (busy) return;
@@ -117,6 +126,8 @@ export default function App(): JSX.Element {
                   maxRounds={state.maxRounds}
                   statusKey={state.statusKey}
                   statusDetail={state.statusArgs?.detail}
+                  lastDiscard={lastDiscard}
+                  flash={lastDiscardFlash}
                 />
                 <SeatPanel player={seatMap.right} rematchReadySeats={state.rematchReadySeats} vertical isTurn={state.turnSeat === seatMap.right?.seat} />
               </View>
@@ -196,7 +207,7 @@ function MeldGroupView({ meld }: { meld: Meld }) {
   );
 }
 
-function CenterHUD({ turnSeat, roomPhase, roundNo, maxRounds, statusKey, statusDetail }: { turnSeat?: number; roomPhase?: string; roundNo?: number; maxRounds?: number; statusKey?: string; statusDetail?: string | number }) {
+function CenterHUD({ turnSeat, roomPhase, roundNo, maxRounds, statusKey, statusDetail, lastDiscard, flash }: { turnSeat?: number; roomPhase?: string; roundNo?: number; maxRounds?: number; statusKey?: string; statusDetail?: string | number; lastDiscard?: { seat: number; tileCode: string } | null; flash?: boolean }) {
   return (
     <View style={styles.centerHud}>
       <Text style={styles.centerTitle}>局况</Text>
@@ -204,6 +215,11 @@ function CenterHUD({ turnSeat, roomPhase, roundNo, maxRounds, statusKey, statusD
       <Text style={styles.meta}>Room: {roomPhase || '-'}</Text>
       <Text style={styles.meta}>Round: {roundNo ?? 0}/{maxRounds ?? 0}</Text>
       <Text style={styles.meta}>State: {statusKey}{statusDetail ? ` (${statusDetail})` : ''}</Text>
+      {lastDiscard ? (
+        <View style={[styles.lastDiscardBadge, flash && styles.lastDiscardBadgeFlash]}>
+          <Text style={styles.lastDiscardText}>S{lastDiscard.seat} 打出 {lastDiscard.tileCode}</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -266,6 +282,9 @@ const styles = StyleSheet.create({
 
   centerHud: { width: 280, borderWidth: 1, borderColor: '#1f2937', borderRadius: 8, backgroundColor: '#111827', padding: 8, alignItems: 'center' },
   centerTitle: { color: '#f8fafc', fontWeight: '700' },
+  lastDiscardBadge: { marginTop: 6, borderWidth: 1, borderColor: '#334155', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: '#0b1220' },
+  lastDiscardBadgeFlash: { borderColor: '#f59e0b', backgroundColor: '#3f2a00' },
+  lastDiscardText: { color: '#fef3c7', fontWeight: '700', fontSize: 12 },
 
   riversWrap: { marginTop: 8, borderWidth: 1, borderColor: '#14532d', borderRadius: 8, padding: 8, backgroundColor: '#064e3b' },
   bottomSeatWrap: { marginTop: 8, alignItems: 'center' },

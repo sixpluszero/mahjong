@@ -114,7 +114,10 @@ export default function App(): JSX.Element {
     <SafeAreaView style={styles.page}>
       <ScrollView contentContainerStyle={styles.wrap}>
         <View style={styles.card}>
-          <View style={styles.row}><Btn text="中文" onPress={() => setLang('zh')} /><Btn text="EN" onPress={() => setLang('en')} /><Btn text="Preview" onPress={() => setMode('preview')} /><Btn text="Live" onPress={() => setMode('live')} /></View>
+          <View style={styles.contentRow}>
+            <View style={styles.managePanel}>
+              <Text style={styles.panelTitle}>房间管理</Text>
+              <View style={styles.row}><Btn text="中文" onPress={() => setLang('zh')} /><Btn text="EN" onPress={() => setLang('en')} /><Btn text="Preview" onPress={() => setMode('preview')} /><Btn text="Live" onPress={() => setMode('live')} /></View>
           <TextInput style={styles.input} value={wsUrl} onChangeText={setWsUrl} />
           <View style={styles.row}>
             <TextInput style={[styles.input, styles.nameInput]} value={state.name} onChangeText={(name) => setState((s) => ({ ...s, name }))} placeholder="Name" />
@@ -123,8 +126,9 @@ export default function App(): JSX.Element {
           </View>
           <TextInput style={styles.input} value={state.roomId} onChangeText={(roomId) => setState((s) => ({ ...s, roomId: roomId.toUpperCase() }))} placeholder="Room" />
           <View style={styles.row}><Btn text={t(lang, 'create')} onPress={() => runAction('创建房间', () => runtime.createRoom())} /><Btn text={t(lang, 'join')} onPress={() => runAction('加入房间', () => runtime.joinRoom(state.roomId))} /><Btn text={t(lang, 'addBot')} onPress={() => runAction('添加机器人', () => runtime.addBot())} /><Btn text={t(lang, 'ready')} onPress={() => runAction('准备', () => runtime.setReady())} /></View>
+            </View>
 
-          <View style={styles.tablePanel}>
+            <View style={styles.tablePanel}>
             <View style={styles.tableHeader}>
               <Text style={styles.tableTitle}>{t(lang, 'table')}</Text>
               <Text style={styles.meta}>{t(lang, 'connected')}: {state.connected ? 'Yes' : 'No'} · {t(lang, 'room')}: {state.roomId || '-'} · {t(lang, 'phase')}: {state.gamePhase || '-'}</Text>
@@ -203,8 +207,7 @@ export default function App(): JSX.Element {
               <View style={[styles.tileRow, !(canDiscard || inExchange) && styles.tileRowDisabled]}>{state.yourHandTiles.map((tile) => <Tile key={tile.id} code={tile.code} selected={exchangeSelected.includes(tile.id)} active={canDiscard || inExchange} onPress={() => onTilePress(tile)} />)}</View>
             </View>
           </View>
-
-
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>

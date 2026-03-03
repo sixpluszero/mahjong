@@ -206,6 +206,7 @@ export default function App(): JSX.Element {
                   <Btn text={t(lang, 'rematch')} onPress={() => runAction('再来一局', () => runtime.requestRematch())} />
                 </View>
 
+                <Text style={styles.revealItem}>亮牌数据条目: {(state.revealedHands || []).length}</Text>
                 {(state.revealedHands || []).length > 0 ? (
                   <View style={styles.revealPanel}>
                     <Text style={styles.revealTitle}>本局亮牌</Text>

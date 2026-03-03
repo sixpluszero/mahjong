@@ -284,7 +284,7 @@ function createLiveRuntime(wsUrl: string, onState: RuntimeOptions['onState']): L
             onState({
               roomId: message.payload?.roomId || '', roomPhase: message.payload?.phase,
               roundNo: message.payload?.roundNo || 0, maxRounds: message.payload?.maxRounds || 0,
-              rematchReadySeats: message.payload?.rematchReadySeats || [], matchFinished: !!message.payload?.matchFinished, roundHistory: message.payload?.roundHistory || [],
+              rematchReadySeats: message.payload?.rematchReadySeats || [], matchFinished: !!message.payload?.matchFinished, roundHistory: message.payload?.roundHistory || [], revealedHands: message.payload?.revealedHands || [],
               players: enrichRoundDelta(buildPlayers(message.payload?.players || [], model.gameState?.players || [])),
               statusKey: 'room_synced'
             });

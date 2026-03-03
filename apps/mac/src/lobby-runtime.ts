@@ -5,12 +5,26 @@
 
 import { reduceServerMessage } from '../../../packages/client-core/src/web-entry.js';
 
+export type LobbyStatusKey =
+  | 'idle'
+  | 'preview_connected'
+  | 'preview_disconnected'
+  | 'preview_hello'
+  | 'preview_room_created'
+  | 'preview_room_joined'
+  | 'connecting'
+  | 'connected'
+  | 'disconnected'
+  | 'room_synced'
+  | 'error';
+
 export type LobbyViewState = {
   name: string;
   roomId: string;
-  status: string;
   players: string[];
   connected: boolean;
+  statusKey: LobbyStatusKey;
+  statusArgs?: Record<string, string | number>;
 };
 
 export type LobbyRuntime = {
@@ -19,6 +33,8 @@ export type LobbyRuntime = {
   hello: (name: string) => void;
   createRoom: () => void;
   joinRoom: (roomId: string) => void;
+  addBot: () => void;
+  setReady: () => void;
 };
 
 export type RuntimeOptions = {
@@ -37,22 +53,25 @@ export function createLobbyRuntime(options: RuntimeOptions): LobbyRuntime {
 function createPreviewRuntime(onState: RuntimeOptions['onState']): LobbyRuntime {
   return {
     connect() {
-      onState({ connected: true, status: 'Preview connected' });
+      onState({ connected: true, statusKey: 'preview_connected' });
     },
     disconnect() {
-      onState({ connected: false, status: 'Preview disconnected' });
+      onState({ connected: false, statusKey: 'preview_disconnected' });
     },
     hello(name: string) {
-      onState({ name, status: `Hello ${name || 'Player'} (preview mode)` });
+      onState({ name, statusKey: 'preview_hello', statusArgs: { name: name || 'Player' } });
     },
     createRoom() {
-      onState(({
-        roomId: 'ABC123',
-        status: 'Room created (preview)'
-      }) as Partial<LobbyViewState>);
+      onState({ roomId: 'ABC123', statusKey: 'preview_room_created' });
     },
     joinRoom(roomId: string) {
-      onState({ roomId: roomId.toUpperCase(), status: `Join room ${roomId.toUpperCase()} (preview)` });
+      onState({ roomId: roomId.toUpperCase(), statusKey: 'preview_room_joined', statusArgs: { roomId: roomId.toUpperCase() } });
+    },
+    addBot() {
+      onState({ statusKey: 'room_synced', statusArgs: { players: 2 } });
+    },
+    setReady() {
+      onState({ statusKey: 'room_synced', statusArgs: { players: 2 } });
     }
   };
 }
@@ -72,30 +91,35 @@ function createLiveRuntime(wsUrl: string, onState: RuntimeOptions['onState']): L
         return;
       }
       ws = new WebSocket(wsUrl);
-      onState({ status: `Connecting: ${wsUrl}` });
+      onState({ statusKey: 'connecting', statusArgs: { wsUrl } });
 
       ws.addEventListener('open', () => {
-        onState({ connected: true, status: 'Connected' });
+        onState({ connected: true, statusKey: 'connected' });
       });
 
       ws.addEventListener('close', () => {
-        onState({ connected: false, status: 'Disconnected' });
+        onState({ connected: false, statusKey: 'disconnected' });
       });
 
       ws.addEventListener('message', (event) => {
-        const message = JSON.parse(String(event.data));
-        const { patch = {} } = reduceServerMessage(model, message);
-        Object.assign(model, patch);
+        try {
+          const message = JSON.parse(String(event.data));
+          const { patch = {} } = reduceServerMessage(model, message);
+          Object.assign(model, patch);
 
-        if (message.type === 'room_state') {
-          const players = (message.payload?.players || [])
-            .filter((p: any) => p.occupied)
-            .map((p: any) => p.name);
-          onState({
-            roomId: message.payload?.roomId || '',
-            players,
-            status: `Room synced (${players.length} players)`
-          });
+          if (message.type === 'room_state') {
+            const players = (message.payload?.players || [])
+              .filter((p: any) => p.occupied)
+              .map((p: any) => p.name);
+            onState({
+              roomId: message.payload?.roomId || '',
+              players,
+              statusKey: 'room_synced',
+              statusArgs: { players: players.length }
+            });
+          }
+        } catch {
+          onState({ statusKey: 'error' });
         }
       });
     },
@@ -113,6 +137,12 @@ function createLiveRuntime(wsUrl: string, onState: RuntimeOptions['onState']): L
     },
     joinRoom(roomId: string) {
       send(ws, 'join_room', { roomId: roomId.toUpperCase() });
+    },
+    addBot() {
+      send(ws, 'add_bot', {});
+    },
+    setReady() {
+      send(ws, 'set_ready', { ready: true });
     }
   };
 }

@@ -18,3 +18,8 @@
 ## 3. Regression
 - [ ] Web still works for create/join after mac tests
 - [ ] No server console errors from mac handshake
+
+## 4. Feature parity checkpoints
+- [ ] Add Bot button sends `add_bot` and room updates
+- [ ] Ready button sends `set_ready`
+- [ ] Language switch (中文 / EN) updates all visible labels

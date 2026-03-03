@@ -45,7 +45,7 @@ export default function App(): JSX.Element {
   const [actionCountdown, setActionCountdown] = useState(0);
   useEffect(() => {
     if (!actionOpen) { setActionCountdown(0); return; }
-    setActionCountdown(8);
+    setActionCountdown(15);
     const timer = setInterval(() => {
       setActionCountdown((n) => (n <= 1 ? 0 : n - 1));
     }, 1000);
@@ -160,7 +160,7 @@ export default function App(): JSX.Element {
                   <Text style={styles.actionTitle}>{t(lang, 'actions')}</Text>
                   <Text style={[styles.actionTimer, actionCountdown <= 3 ? styles.actionTimerDanger : (actionCountdown <= 5 ? styles.actionTimerWarn : null)]}>{t(lang, 'countdown')}: {actionCountdown}s</Text>
                 </View>
-                {actionCountdown > 0 ? <View style={[styles.countdownBar, actionCountdown <= 3 ? styles.countdownBarDanger : (actionCountdown <= 5 ? styles.countdownBarWarn : null), { width: `${Math.max(8, Math.round((actionCountdown / 8) * 100))}%` }]} /> : null}
+                {actionCountdown > 0 ? <View style={[styles.countdownBar, actionCountdown <= 3 ? styles.countdownBarDanger : (actionCountdown <= 5 ? styles.countdownBarWarn : null), { width: `${Math.max(8, Math.round((actionCountdown / 15) * 100))}%` }]} /> : null}
                 {state.pendingReaction ? (
                   <View style={styles.actionBar}>
                     {state.pendingReaction.canHu && <Btn text={t(lang, 'reactHu')} onPress={() => runAction('胡', () => runtime.react('hu'))} />}

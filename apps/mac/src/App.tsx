@@ -365,7 +365,7 @@ const styles = StyleSheet.create({
   tablePanel: { marginTop: 12, borderWidth: 1, borderColor: '#334155', borderRadius: 12, padding: 10, backgroundColor: '#0b1220' },
   tableHeader: { marginBottom: 8 },
   tableTitle: { color: '#f8fafc', fontWeight: '700', fontSize: 16 },
-  tableSurface: { borderRadius: 10, padding: 10, backgroundColor: '#0a3a32' },
+  tableSurface: { width: '78%', alignSelf: 'center', borderRadius: 10, padding: 10, backgroundColor: '#0a3a32' },
   middleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 8, columnGap: 10 },
 
   seatPanel: { minWidth: 200, minHeight: 66, borderWidth: 1, borderColor: '#1f2937', borderRadius: 8, backgroundColor: '#0f172a', padding: 8, alignSelf: 'center' },
@@ -386,7 +386,7 @@ const styles = StyleSheet.create({
   lastDiscardBadgeFlash: { borderColor: '#f59e0b', backgroundColor: '#3f2a00' },
   lastDiscardText: { color: '#fef3c7', fontWeight: '700', fontSize: 12 },
 
-  riversWrap: { marginTop: 8, borderWidth: 1, borderColor: '#14532d', borderRadius: 8, padding: 8, backgroundColor: '#064e3b' },
+  riversWrap: { width: '86%', alignSelf: 'center', marginTop: 8, borderWidth: 1, borderColor: '#14532d', borderRadius: 8, padding: 8, backgroundColor: '#064e3b' },
   bottomSeatWrap: { marginTop: 8, alignItems: 'center' },
   riverGrid: { alignItems: 'center', marginVertical: 2 },
   riverGridCompact: { width: '48%' },

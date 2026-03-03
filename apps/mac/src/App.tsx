@@ -219,11 +219,24 @@ export default function App(): JSX.Element {
                       <Text style={styles.revealTitle}>本局亮牌</Text>
                       {(state.revealedHands || []).map((rh: any) => {
                         const name = findPlayerBySeat(state.players, rh.seat)?.name || `S${rh.seat}`;
-                        const tiles = (rh.hand || []).map((t: any) => `${t.suit?.[0] === 'w' ? 'w' : t.suit?.[0] === 't' ? 't' : 'b'}${t.rank}`);
+                        const handTiles = (rh.hand || []).map((t: any) => `${t.suit?.[0] === 'w' ? 'w' : t.suit?.[0] === 't' ? 't' : 'b'}${t.rank}`);
+                        const meldTiles = ((rh.melds || []) as any[]).flatMap((m: any, mi: number) => {
+                          const rawTiles = Array.isArray(m.tiles) ? m.tiles.map((t: any) => `${t.suit?.[0] === 'w' ? 'w' : t.suit?.[0] === 't' ? 't' : 'b'}${t.rank}`) : null;
+                          if (rawTiles && rawTiles.length) return rawTiles;
+                          const base = `${m.tile?.suit?.[0] === 'w' ? 'w' : m.tile?.suit?.[0] === 't' ? 't' : 'b'}${m.tile?.rank}`;
+                          const cnt = inferMeldCount(m.type);
+                          return Array.from({ length: cnt }, () => base);
+                        });
                         return (
                           <View key={`rh-${rh.seat}`} style={styles.revealRow}>
                             <Text style={styles.revealName}>{name}:</Text>
-                            <View style={styles.revealTiles}>{tiles.length ? tiles.map((c: string, i: number) => <MiniTile key={`${rh.seat}-${i}-${c}`} code={c} />) : <Text style={styles.revealItem}>-</Text>}</View>
+                            <View style={styles.revealTiles}>{handTiles.length ? handTiles.map((c: string, i: number) => <MiniTile key={`${rh.seat}-h-${i}-${c}`} code={c} />) : <Text style={styles.revealItem}>-</Text>}</View>
+                            {meldTiles.length > 0 ? (
+                              <View style={styles.revealMeldLine}>
+                                <Text style={styles.revealMeldLabel}>碰杠:</Text>
+                                <View style={styles.revealTiles}>{meldTiles.map((c: string, i: number) => <MiniTile key={`${rh.seat}-m-${i}-${c}`} code={c} />)}</View>
+                              </View>
+                            ) : null}
                           </View>
                         );
                       })}
@@ -534,6 +547,8 @@ const styles = StyleSheet.create({
   revealRow: { marginTop: 6 },
   revealName: { color: '#ddd6fe', marginBottom: 4, fontSize: 12 },
   revealTiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+  revealMeldLine: { marginTop: 4 },
+  revealMeldLabel: { color: '#c4b5fd', fontSize: 11, marginBottom: 3 },
   revealItem: { color: '#ddd6fe', marginTop: 4, fontSize: 12 },
 
   panel: { marginTop: 10, borderWidth: 1, borderColor: '#334155', borderRadius: 10, padding: 8, backgroundColor: '#0b1220' },

@@ -205,6 +205,19 @@ export default function App(): JSX.Element {
                 <View style={styles.row}>
                   <Btn text={t(lang, 'rematch')} onPress={() => runAction('再来一局', () => runtime.requestRematch())} />
                 </View>
+
+                {(state.revealedHands || []).length > 0 ? (
+                  <View style={styles.revealPanel}>
+                    <Text style={styles.revealTitle}>本局亮牌</Text>
+                    {(state.revealedHands || []).map((rh: any) => {
+                      const name = findPlayerBySeat(state.players, rh.seat)?.name || `S${rh.seat}`;
+                      const tiles = (rh.hand || []).map((t: any) => `${t.suit?.[0] === 'w' ? 'w' : t.suit?.[0] === 't' ? 't' : 'b'}${t.rank}`);
+                      return (
+                        <Text key={`rh-${rh.seat}`} style={styles.revealItem}>{name}: {tiles.map((c: string) => tileCodeToZh(c)).join(' ') || '-'}</Text>
+                      );
+                    })}
+                  </View>
+                ) : null}
               </View>
             ) : null}
 
@@ -378,6 +391,18 @@ function tileCodeToZh(code: string) {
 }
 
 
+function formatPatternDetail(event: any) {
+  const nameMap: Record<string, string> = {
+    ping_hu: '平胡', peng_peng_hu: '碰碰胡', qi_dui: '七对', long_qi_dui: '龙七对', jiang_dui: '将对',
+    yao_jiu: '幺九', qing_yi_se: '清一色', zi_mo: '自摸', men_qing: '门清', gang_shang_hua: '杠上花',
+    gang_shang_pao: '杠上炮', qiang_gang_hu: '抢杠胡', hai_di_lao_yue: '海底捞月', hai_di_pao: '海底炮',
+    tian_hu: '天胡', di_hu: '地胡'
+  };
+  const ps = event?.patterns || [];
+  if (!ps.length) return '';
+  return `番型:${ps.map((k: string) => nameMap[k] || k).join('+')}`;
+}
+
 function buildScoreFeedLines(state: LobbyViewState, latestRound: any) {
   const players = state.players || [];
   const nameOf = (seat: number | null | undefined) => {
@@ -390,10 +415,11 @@ function buildScoreFeedLines(state: LobbyViewState, latestRound: any) {
   for (const e of events) {
     if (e.type === 'hu') {
       const fanPart = e.fan != null ? `，${e.fan}番` : '';
+      const patternPart = formatPatternDetail(e);
       if (e.winMode === 'zi_mo') {
-        lines.push(`${nameOf(e.winnerSeat)} 自摸，每家 ${e.amount} 分${fanPart}`);
+        lines.push(`${nameOf(e.winnerSeat)} 自摸，每家 ${e.amount} 分${fanPart}${patternPart ? `，${patternPart}` : ''}`);
       } else {
-        lines.push(`${nameOf(e.winnerSeat)} 胡 ${nameOf(e.fromSeat)}，${e.amount} 分${fanPart}`);
+        lines.push(`${nameOf(e.winnerSeat)} 胡 ${nameOf(e.fromSeat)}，${e.amount} 分${fanPart}${patternPart ? `，${patternPart}` : ''}`);
       }
     } else if (e.type === 'gang') {
       const gType = e.gangType === 'an_gang' ? '暗杠' : e.gangType === 'bu_gang' ? '补杠' : '明杠';
@@ -481,6 +507,9 @@ const styles = StyleSheet.create({
   settlementOverlay: { marginTop: 10, borderWidth: 1, borderColor: '#7c3aed', borderRadius: 10, padding: 10, backgroundColor: '#1f1147' },
   settlementTitle: { color: '#f5d0fe', fontWeight: '800', fontSize: 16 },
   settlementItem: { color: '#e9d5ff', marginTop: 4 },
+  revealPanel: { marginTop: 8, borderWidth: 1, borderColor: '#4c1d95', borderRadius: 8, padding: 8, backgroundColor: '#130a2f' },
+  revealTitle: { color: '#e9d5ff', fontWeight: '700' },
+  revealItem: { color: '#ddd6fe', marginTop: 4, fontSize: 12 },
 
   panel: { marginTop: 10, borderWidth: 1, borderColor: '#334155', borderRadius: 10, padding: 8, backgroundColor: '#0b1220' },
   title: { color: '#f8fafc', fontWeight: '700' },

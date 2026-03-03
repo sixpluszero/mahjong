@@ -755,6 +755,20 @@ function emitGameState(room) {
       continue;
     }
 
+    const statePayload = room.game.phase === 'settlement'
+      ? {
+          ...publicState,
+          revealedHands: room.game.players.map((p) => ({
+            seat: p.seat,
+            hand: [...p.hand],
+            melds: [...p.melds],
+            hasHu: p.hasHu,
+            lackSuit: p.lackSuit,
+            score: p.score
+          }))
+        }
+      : publicState;
+
     send(conn.socket, 'game_state', {
       roomId: room.id,
       you: {
@@ -766,7 +780,7 @@ function emitGameState(room) {
         score: room.game.players[player.seat].score,
         canSelfHu: canDeclareSelfDrawHu(room.game, player.seat)
       },
-      state: publicState,
+      state: statePayload,
       pendingReaction: describePendingForSeat(room.game.pendingReactions, player.seat)
     });
   }

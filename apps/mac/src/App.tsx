@@ -214,6 +214,7 @@ export default function App(): JSX.Element {
         styles.btn,
         variant === 'secondary' && styles.btnSecondary,
         variant === 'danger' && styles.btnDanger,
+        variant === 'accent' && styles.btnAccent,
         variant === 'ghost' && styles.btnGhost,
         pressed && !disabled && styles.btnPressed,
         disabled && styles.btnDisabled
@@ -225,6 +226,7 @@ export default function App(): JSX.Element {
         styles.btnText,
         variant === 'secondary' && styles.btnTextSecondary,
         variant === 'danger' && styles.btnTextDanger,
+        variant === 'accent' && styles.btnTextAccent,
         variant === 'ghost' && styles.btnTextGhost,
         disabled && styles.btnTextDisabled
       ]}
@@ -301,15 +303,7 @@ export default function App(): JSX.Element {
                   </View>
                 ) : null}
               </View>
-            </View>
 
-            <View style={styles.tablePanel}>
-            <View style={styles.tableHeader}>
-              <Text style={styles.tableTitle}>{t(lang, 'table')}</Text>
-              <Text style={styles.meta}>{t(lang, 'connected')}: {state.connected ? 'Yes' : 'No'} · {t(lang, 'room')}: {state.roomId || '-'} · {t(lang, 'phase')}: {state.gamePhase || '-'}</Text>
-            </View>
-
-            <View style={styles.tableSurface}>
               <CenterHUD
                 styles={styles}
                 turnSeat={state.turnSeat}
@@ -323,6 +317,15 @@ export default function App(): JSX.Element {
                 lastDiscardPlayerName={lastDiscardPlayerName}
                 flash={lastDiscardFlash}
               />
+            </View>
+
+            <View style={styles.tablePanel}>
+            <View style={styles.tableHeader}>
+              <Text style={styles.tableTitle}>{t(lang, 'table')}</Text>
+              <Text style={styles.meta}>{t(lang, 'connected')}: {state.connected ? 'Yes' : 'No'} · {t(lang, 'room')}: {state.roomId || '-'} · {t(lang, 'phase')}: {state.gamePhase || '-'}</Text>
+            </View>
+
+            <View style={styles.tableSurface}>
               <SeatPanel styles={styles} player={seatMap.top} rematchReadySeats={state.rematchReadySeats} isTurn={state.turnSeat === seatMap.top?.seat} isSelf={false} />
               <View style={styles.riversRow}>
                 <SeatPanel styles={styles} player={seatMap.left} rematchReadySeats={state.rematchReadySeats} vertical side="left" isTurn={state.turnSeat === seatMap.left?.seat} isSelf={false} />
@@ -330,48 +333,6 @@ export default function App(): JSX.Element {
                 <SeatPanel styles={styles} player={seatMap.right} rematchReadySeats={state.rematchReadySeats} vertical side="right" isTurn={state.turnSeat === seatMap.right?.seat} isSelf={false} />
               </View>
               <View style={styles.bottomSeatWrap}>
-                {actionOpen ? (
-                  <View style={[styles.actionBarWrap, styles.actionBarInline]}>
-                    <View style={styles.actionBarHeader}>
-                      <Text style={styles.actionTitle}>{t(lang, 'actions')}</Text>
-                      {showActionCountdown ? (
-                        <Text style={[styles.actionTimer, actionCountdown <= 3 ? styles.actionTimerDanger : (actionCountdown <= 5 ? styles.actionTimerWarn : null)]}>{t(lang, 'countdown')}: {actionCountdown}s</Text>
-                      ) : (
-                        <Text style={styles.meta}>当前阶段操作</Text>
-                      )}
-                    </View>
-                    {showActionCountdown && actionCountdown > 0 ? <View style={[styles.countdownBar, actionCountdown <= 3 ? styles.countdownBarDanger : (actionCountdown <= 5 ? styles.countdownBarWarn : null), { width: `${Math.max(8, Math.round((actionCountdown / 15) * 100))}%` }]} /> : null}
-                    {state.pendingReaction ? (
-                      <View style={styles.actionBar}>
-                        {state.pendingReaction.canHu && <Btn text={t(lang, 'reactHu')} onPress={() => runAction('胡', () => runtime.react('hu'))} />}
-                        {state.pendingReaction.canGang && <Btn text={t(lang, 'reactGang')} variant="secondary" onPress={() => runAction('杠', () => runtime.react('gang'))} />}
-                        {state.pendingReaction.canPeng && <Btn text={t(lang, 'reactPeng')} variant="secondary" onPress={() => runAction('碰', () => runtime.react('peng'))} />}
-                        <Btn text={t(lang, 'reactPass')} variant="danger" onPress={() => runAction('过', () => runtime.react('pass'))} />
-                      </View>
-                    ) : inExchange ? (
-                      <View style={styles.actionBar}>
-                        <Text style={styles.meta}>换三张 {exchangeSelected.length}/3</Text>
-                        <Btn text={t(lang, 'submitExchange')} onPress={() => runAction('提交换三张', () => runtime.submitExchange(exchangeSelected))} />
-                      </View>
-                    ) : inLack ? (
-                      <View style={styles.actionBar}>
-                        <Btn text={t(lang, 'lackWan')} variant="secondary" onPress={() => runAction('定缺万', () => runtime.setLack('wan'))} />
-                        <Btn text={t(lang, 'lackTiao')} variant="secondary" onPress={() => runAction('定缺条', () => runtime.setLack('tiao'))} />
-                        <Btn text={t(lang, 'lackTong')} variant="secondary" onPress={() => runAction('定缺筒', () => runtime.setLack('tong'))} />
-                      </View>
-                    ) : inSettlement ? (
-                      <View style={styles.actionBar}>
-                        <Btn text={t(lang, 'rematch')} onPress={() => runAction('再来一局', () => runtime.requestRematch())} />
-                      </View>
-                    ) : (
-                      <View style={styles.actionBar}>
-                        {state.canSelfHu ? <Btn text={t(lang, 'selfHu')} onPress={() => runAction('自摸胡', () => runtime.selfHu())} /> : null}
-                        {anGang.map((x) => <Btn key={`agang-${x.id}`} text={`暗杠 ${tileCodeToZh(x.code)}`} variant="secondary" onPress={() => runAction('暗杠', () => runtime.anGang(x.id))} />)}
-                        {buGang.map((x) => <Btn key={`bgang-${x.id}`} text={`补杠 ${tileCodeToZh(x.code)}`} variant="secondary" onPress={() => runAction('补杠', () => runtime.buGang(x.id))} />)}
-                      </View>
-                    )}
-                  </View>
-                ) : null}
                 <SeatPanel styles={styles} player={bottomPlayer} rematchReadySeats={state.rematchReadySeats} isTurn={state.turnSeat === bottomPlayer?.seat} isSelf />
               </View>
             </View>
@@ -426,7 +387,47 @@ export default function App(): JSX.Element {
 
 
             <View style={styles.handArea}>
-              <View style={[styles.tileRow, !(canDiscard || inExchange) && styles.tileRowDisabled]}>{state.yourHandTiles.map((tile) => <Tile key={tile.id} styles={styles} code={tile.code} selected={exchangeSelected.includes(tile.id)} active={canDiscard || inExchange} onPress={() => onTilePress(tile)} />)}</View>
+              <View style={styles.handRow}>
+                <View style={[styles.tileRow, styles.tileRowHand, !(canDiscard || inExchange) && styles.tileRowDisabled]}>{state.yourHandTiles.map((tile) => <Tile key={tile.id} styles={styles} code={tile.code} selected={exchangeSelected.includes(tile.id)} active={canDiscard || inExchange} onPress={() => onTilePress(tile)} />)}</View>
+                {actionOpen ? (
+                  <View style={[styles.actionBarWrap, styles.actionBarHandRight]}>
+                    <View style={styles.actionBarHeader}>
+                      <Text style={styles.actionTitle}>{t(lang, 'actions')}</Text>
+                      {showActionCountdown ? <Text style={[styles.actionTimer, actionCountdown <= 3 ? styles.actionTimerDanger : (actionCountdown <= 5 ? styles.actionTimerWarn : null)]}>{t(lang, 'countdown')}: {actionCountdown}s</Text> : null}
+                    </View>
+                    {showActionCountdown && actionCountdown > 0 ? <View style={[styles.countdownBar, actionCountdown <= 3 ? styles.countdownBarDanger : (actionCountdown <= 5 ? styles.countdownBarWarn : null), { width: `${Math.max(8, Math.round((actionCountdown / 15) * 100))}%` }]} /> : null}
+                    {state.pendingReaction ? (
+                      <View style={styles.actionBar}>
+                        {state.pendingReaction.canHu && <Btn text={t(lang, 'reactHu')} variant="accent" onPress={() => runAction('胡', () => runtime.react('hu'))} />}
+                        {state.pendingReaction.canGang && <Btn text={t(lang, 'reactGang')} variant="accent" onPress={() => runAction('杠', () => runtime.react('gang'))} />}
+                        {state.pendingReaction.canPeng && <Btn text={t(lang, 'reactPeng')} variant="accent" onPress={() => runAction('碰', () => runtime.react('peng'))} />}
+                        <Btn text={t(lang, 'reactPass')} variant="danger" onPress={() => runAction('过', () => runtime.react('pass'))} />
+                      </View>
+                    ) : inExchange ? (
+                      <View style={styles.actionBar}>
+                        <Text style={styles.meta}>换三张 {exchangeSelected.length}/3</Text>
+                        <Btn text={t(lang, 'submitExchange')} onPress={() => runAction('提交换三张', () => runtime.submitExchange(exchangeSelected))} />
+                      </View>
+                    ) : inLack ? (
+                      <View style={styles.actionBar}>
+                        <Btn text={t(lang, 'lackWan')} variant="secondary" onPress={() => runAction('定缺万', () => runtime.setLack('wan'))} />
+                        <Btn text={t(lang, 'lackTiao')} variant="secondary" onPress={() => runAction('定缺条', () => runtime.setLack('tiao'))} />
+                        <Btn text={t(lang, 'lackTong')} variant="secondary" onPress={() => runAction('定缺筒', () => runtime.setLack('tong'))} />
+                      </View>
+                    ) : inSettlement ? (
+                      <View style={styles.actionBar}>
+                        <Btn text={t(lang, 'rematch')} onPress={() => runAction('再来一局', () => runtime.requestRematch())} />
+                      </View>
+                    ) : (
+                      <View style={styles.actionBar}>
+                        {state.canSelfHu ? <Btn text={t(lang, 'selfHu')} variant="accent" onPress={() => runAction('自摸胡', () => runtime.selfHu())} /> : null}
+                        {anGang.map((x) => <Btn key={`agang-${x.id}`} text={`暗杠 ${tileCodeToZh(x.code)}`} variant="accent" onPress={() => runAction('暗杠', () => runtime.anGang(x.id))} />)}
+                        {buGang.map((x) => <Btn key={`bgang-${x.id}`} text={`补杠 ${tileCodeToZh(x.code)}`} variant="accent" onPress={() => runAction('补杠', () => runtime.buGang(x.id))} />)}
+                      </View>
+                    )}
+                  </View>
+                ) : null}
+              </View>
             </View>
 
           </View>
@@ -455,32 +456,70 @@ function InputField({ styles, theme, value, onChangeText, placeholder, compact =
 }
 
 function SeatPanel({ styles, player, rematchReadySeats, vertical = false, side, isTurn = false, isSelf = false }: { styles: AppStyles; player?: LobbyPlayer; rematchReadySeats: number[]; vertical?: boolean; side?: 'left' | 'right'; isTurn?: boolean; isSelf?: boolean }) {
-  if (!player) return <View style={[styles.seatPanel, vertical && styles.seatPanelVertical, side === 'left' && styles.seatPanelLeft, side === 'right' && styles.seatPanelRight]}><Text style={styles.meta}>-</Text></View>;
+  if (!player) {
+    return (
+      <View style={[styles.seatPanel, vertical && styles.seatPanelVertical, side === 'left' && styles.seatPanelLeft, side === 'right' && styles.seatPanelRight]}>
+        <View style={styles.seatInfoPanel}>
+          <Text style={styles.meta}>-</Text>
+        </View>
+        <View style={styles.seatMeldPanel} />
+      </View>
+    );
+  }
   const compact = true;
+  const visibleMelds = (player.melds || []).filter((m) => isMeldVisible(m, isSelf)).slice(0, 4);
+  const meldNodes = visibleMelds.map((m, i) => <MeldGroupView key={`${player.seat}-${i}`} styles={styles} meld={m} />);
+  const verticalMeldTiles = visibleMelds.flatMap((m) => {
+    const raw: any = m as any;
+    const rawTiles = Array.isArray(raw.tiles) ? raw.tiles : null;
+    if (rawTiles && rawTiles.length > 0) return rawTiles.map((t: any) => `${suitPrefix(t.suit)}${t.rank}`);
+    return Array.from({ length: inferMeldCount(raw.type) }, () => `${suitPrefix(m.tile.suit)}${m.tile.rank}`);
+  });
   return (
-    <View style={[styles.seatPanel, styles.seatPanelOpponent, vertical && styles.seatPanelVertical, vertical && styles.seatPanelOpponentVertical, side === 'left' && styles.seatPanelLeft, side === 'right' && styles.seatPanelRight, isTurn && styles.seatPanelTurn]}>
-      <Text style={[styles.seatName, compact && styles.seatNameCompact, isTurn && styles.seatNameTurn]}>S{player.seat} {player.name}{isTurn ? ' ●' : ''}</Text>
-      {compact ? (
-        <Text style={[styles.meta, styles.metaCompact]}>
-          分:{player.totalScore} · 缺:{lackSuitToZh(player.lackSuit)} · {player.online ? '在线' : '离线'} {rematchReadySeats.includes(player.seat) ? '· ✅' : ''}
-        </Text>
-      ) : (
-        <>
-          <Text style={styles.meta}>分数: {player.totalScore} {rematchReadySeats.includes(player.seat) ? '✅已准备' : ''}</Text>
-          <Text style={styles.meta}>定缺: {lackSuitToZh(player.lackSuit)} · {player.online ? '在线' : '离线'}</Text>
-        </>
-      )}
-      <View style={[styles.meldGroupWrap, compact && styles.meldGroupWrapCompact]}>
-        {(player.melds || [])
-          .filter((m) => isMeldVisible(m, isSelf))
-          .slice(0, 4)
-          .map((m, i) => <MeldGroupView key={`${player.seat}-${i}`} styles={styles} meld={m} />)}
+    <View style={[
+      styles.seatPanel,
+      styles.seatPanelOpponent,
+      !vertical && styles.seatPanelInline,
+      vertical && styles.seatPanelStack,
+      !vertical && !isSelf && styles.seatPanelTopWide,
+      !vertical && isSelf && styles.seatPanelBottomWide,
+      vertical && styles.seatPanelVertical,
+      vertical && styles.seatPanelOpponentVertical,
+      side === 'left' && styles.seatPanelLeft,
+      side === 'right' && styles.seatPanelRight,
+      isTurn && styles.seatPanelTurn
+    ]}>
+      <View style={[styles.seatInfoPanel, vertical && styles.seatInfoPanelVertical]}>
+        <Text numberOfLines={vertical ? undefined : 1} style={[styles.seatName, compact && styles.seatNameCompact, isTurn && styles.seatNameTurn]}>{player.name}{isTurn ? ' ●' : ''}</Text>
+        {compact ? (
+          <Text numberOfLines={vertical ? undefined : 1} style={[styles.meta, styles.metaCompact]}>
+            分:{player.totalScore} · 缺:{lackSuitToZh(player.lackSuit)} · {player.online ? '在线' : '离线'} {rematchReadySeats.includes(player.seat) ? '· ✅' : ''}
+          </Text>
+        ) : (
+          <>
+            <Text style={styles.meta}>分数: {player.totalScore} {rematchReadySeats.includes(player.seat) ? '✅已准备' : ''}</Text>
+            <Text style={styles.meta}>定缺: {lackSuitToZh(player.lackSuit)} · {player.online ? '在线' : '离线'}</Text>
+          </>
+        )}
+      </View>
+      <View style={[styles.seatMeldPanel, vertical ? styles.seatMeldPanelVertical : styles.seatMeldPanelHorizontal]}>
+        {vertical ? (
+          <View style={[styles.meldGroupWrap, compact && styles.meldGroupWrapCompact, styles.meldGroupWrapVerticalSingle]}>
+            {verticalMeldTiles.map((c, i) => (
+              <SideMiniTile key={`${player.seat}-v-${i}-${c}`} styles={styles} code={c} side={side || 'left'} />
+            ))}
+          </View>
+        ) : (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.meldInlineScroller} contentContainerStyle={[styles.meldGroupWrap, compact && styles.meldGroupWrapCompact, styles.meldGroupWrapInlineNowrap]}>
+            {meldNodes}
+          </ScrollView>
+        )}
       </View>
     </View>
   );
 }
 
-function MeldGroupView({ styles, meld }: { styles: AppStyles; meld: Meld }) {
+function MeldGroupView({ styles, meld, side }: { styles: AppStyles; meld: Meld; side?: 'left' | 'right' }) {
   const raw: any = meld as any;
   const rawTiles = Array.isArray(raw.tiles) ? raw.tiles : null;
   const tiles = rawTiles && rawTiles.length > 0
@@ -488,7 +527,13 @@ function MeldGroupView({ styles, meld }: { styles: AppStyles; meld: Meld }) {
     : Array.from({ length: inferMeldCount(raw.type) }, () => `${suitPrefix(meld.tile.suit)}${meld.tile.rank}`);
   return (
     <View style={styles.meldGroup}>
-      <View style={styles.meldTilesRow}>{tiles.map((c, i) => <MiniTile key={`${c}-${i}`} styles={styles} code={c} />)}</View>
+      <View style={styles.meldTilesRow}>
+        {tiles.map((c, i) => (
+          side
+            ? <SideMiniTile key={`${c}-${i}`} styles={styles} code={c} side={side} />
+            : <MiniTile key={`${c}-${i}`} styles={styles} code={c} />
+        ))}
+      </View>
     </View>
   );
 }
@@ -524,11 +569,12 @@ function DiscardRivers({ styles, discardsBySeat, mySeat, reactionTarget }: { sty
 }
 
 function RiverGrid({ styles, tiles, compact = false, vertical = false, verticalSide, highlightCode }: { styles: AppStyles; tiles: string[]; compact?: boolean; vertical?: boolean; verticalSide?: 'left' | 'right'; highlightCode?: string }) {
-  const perLine = vertical ? 8 : 8;
-  const lineCount = Math.max(2, Math.ceil(tiles.length / perLine));
-  const padded = [...tiles];
+  const perLine = 8;
+  const lineCount = 3;
+  const visibleTiles = tiles.slice(-perLine * lineCount);
+  const padded = [...visibleTiles];
   while (padded.length < lineCount * perLine) padded.push('');
-  const highlightIndex = highlightCode ? tiles.lastIndexOf(highlightCode) : -1;
+  const highlightIndex = highlightCode ? visibleTiles.lastIndexOf(highlightCode) : -1;
   return (
     <View style={[
       styles.riverGrid,
@@ -540,7 +586,7 @@ function RiverGrid({ styles, tiles, compact = false, vertical = false, verticalS
         <View key={line} style={[styles.riverRow, vertical && styles.riverRowVertical]}>
           {padded.slice(line * perLine, (line + 1) * perLine).map((c, i) => {
             const index = line * perLine + i;
-            if (!c) return <View key={`${line}-${i}-x`} style={styles.riverPlaceholder} />;
+            if (!c) return <View key={`${line}-${i}-x`} style={verticalSide ? styles.riverGhostSide : styles.riverGhostTile} />;
             if (verticalSide) return <SideMiniTile key={`${line}-${i}-${c}`} styles={styles} code={c} side={verticalSide} highlighted={index === highlightIndex} />;
             return <MiniTile key={`${line}-${i}-${c}`} styles={styles} code={c} highlighted={index === highlightIndex} />;
           })}
@@ -568,7 +614,7 @@ function suitPrefix(suit: string) { if (suit === 'wan') return 'w'; if (suit ===
 function findPlayerBySeat(players: LobbyPlayer[], seat: number) { return players.find((p) => p.seat === seat); }
 function groupDiscardsBySeat(discards: { seat: number; tileCode: string; claimed?: boolean }[]) { const map: Record<number, string[]> = {}; for (const d of discards) { if (d.claimed) continue; if (!map[d.seat]) map[d.seat] = []; map[d.seat].push(d.tileCode); } return map; }
 
-type BtnVariant = 'primary' | 'secondary' | 'danger' | 'ghost';
+type BtnVariant = 'primary' | 'secondary' | 'danger' | 'ghost' | 'accent';
 function Tile({ styles, code, small = false, selected = false, active = false, highlighted = false, onPress }: { styles: AppStyles; code: string; small?: boolean; selected?: boolean; active?: boolean; highlighted?: boolean; onPress?: () => void }) {
   const pure = code.includes('@') ? code.split('@')[0] : code;
   const asset = getTileAsset(pure, 'upright');
@@ -729,11 +775,13 @@ function createStyles(theme: ThemeTokens) {
     btn: { minHeight: 36, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: theme.brand, backgroundColor: theme.brand, justifyContent: 'center' },
     btnSecondary: { backgroundColor: theme.btnSecondaryBg, borderColor: theme.borderSoft },
     btnDanger: { backgroundColor: theme.btnDangerBg, borderColor: theme.danger },
+    btnAccent: { backgroundColor: '#F59E0B', borderColor: '#D97706' },
     btnGhost: { backgroundColor: 'transparent', borderColor: 'transparent' },
     btnPressed: { opacity: 0.85, transform: [{ translateY: 1 }] },
     btnText: { color: '#FFFFFF', fontWeight: '600', fontSize: 14 },
     btnTextSecondary: { color: theme.btnSecondaryText },
     btnTextDanger: { color: theme.btnDangerText },
+    btnTextAccent: { color: '#111827', fontWeight: '700' },
     btnTextGhost: { color: theme.btnGhostText },
     btnDisabled: { opacity: 0.55 },
     btnTextDisabled: { color: '#9CA3AF' },
@@ -755,49 +803,83 @@ function createStyles(theme: ThemeTokens) {
       alignItems: 'stretch'
     },
     middleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 8, columnGap: 10 },
-    riversRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', columnGap: 10, marginTop: 10 },
+    riversRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', columnGap: 10, marginTop: 10 },
 
-    seatPanel: { minWidth: 210, minHeight: 86, borderWidth: 1, borderColor: theme.borderSoft, borderRadius: 12, backgroundColor: theme.bgPanel, padding: 10, alignSelf: 'center' },
+    seatPanel: { alignSelf: 'center' },
     seatPanelOpponent: {
-      minWidth: 184,
-      minHeight: 64,
-      paddingVertical: 6,
-      paddingHorizontal: 8,
-      borderRadius: 10,
-      backgroundColor: theme.inputBg
+      minWidth: 0,
+      minHeight: 0,
+      paddingVertical: 0,
+      paddingHorizontal: 0,
+      borderRadius: 0,
+      backgroundColor: 'transparent',
+      overflow: 'visible'
     },
-    seatPanelVertical: { minWidth: 136, width: 136 },
-    seatPanelOpponentVertical: { minWidth: 124, width: 124 },
-    seatPanelLeft: { marginTop: 0, alignSelf: 'center' },
-    seatPanelRight: { marginTop: 0, alignSelf: 'center' },
+    seatPanelInline: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', columnGap: 8 },
+    seatPanelStack: { rowGap: 6, justifyContent: 'flex-start' },
+    seatPanelTopWide: { width: '74%', maxWidth: 980, minWidth: 560, alignSelf: 'center' },
+    seatPanelBottomWide: { flex: 1, minWidth: 320, maxWidth: 720 },
+    seatPanelVertical: { minWidth: 136, width: 136, justifyContent: 'flex-start' },
+    seatPanelOpponentVertical: { minWidth: 124, width: 124, justifyContent: 'flex-start' },
+    seatPanelLeft: { marginTop: 0, alignSelf: 'flex-start' },
+    seatPanelRight: { marginTop: 0, alignSelf: 'flex-start' },
     seatPanelTurn: { borderColor: 'rgba(59,130,246,0.7)', shadowColor: theme.brand, shadowOpacity: 0.3, shadowRadius: 8 },
+    seatInfoPanel: {
+      flexShrink: 1,
+      minWidth: 132,
+      maxWidth: 220,
+      borderWidth: 1,
+      borderColor: theme.borderSoft,
+      borderRadius: 8,
+      paddingHorizontal: 8,
+      paddingVertical: 6,
+      backgroundColor: theme.bgPanel
+    },
+    seatInfoPanelVertical: { minWidth: 0, maxWidth: '100%', width: '100%', marginTop: 0 },
+    seatMeldPanel: {
+      borderWidth: 1,
+      borderColor: theme.borderSoft,
+      borderRadius: 8,
+      paddingHorizontal: 4,
+      paddingVertical: 4,
+      backgroundColor: theme.bgPanel,
+      overflow: 'visible'
+    },
+    seatMeldPanelHorizontal: { flex: 1, minWidth: 140, minHeight: 0, paddingVertical: 1, alignSelf: 'center' },
+    seatMeldPanelVertical: { alignSelf: 'center', alignItems: 'center' },
     seatNameTurn: { color: '#BFDBFE' },
     seatName: { color: theme.textPrimary, fontWeight: '700', fontSize: 16, lineHeight: 20 },
-    seatNameCompact: { fontSize: 12, lineHeight: 15 },
+    seatNameCompact: { fontSize: 12, lineHeight: 15, flexWrap: 'wrap' },
     meldGroupWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 },
     meldGroupWrapCompact: { gap: 4, marginTop: 4 },
+    meldInlineScroller: { flex: 1, minWidth: 140, maxHeight: 56 },
+    meldGroupWrapInline: { marginTop: 0, justifyContent: 'flex-end', maxWidth: 220 },
+    meldGroupWrapVerticalSingle: { marginTop: 4, flexDirection: 'column', flexWrap: 'nowrap', alignItems: 'center', justifyContent: 'flex-start' },
+    meldGroupWrapInlineNowrap: { marginTop: 0, flexWrap: 'nowrap', alignItems: 'center', paddingRight: 2 },
     meldGroup: { borderWidth: 1, borderColor: theme.borderSoft, borderRadius: 8, padding: 3, backgroundColor: theme.inputBg },
     meldTilesRow: { flexDirection: 'row', gap: 2 },
 
-    centerHud: { width: '94%', maxWidth: 900, alignSelf: 'center', borderWidth: 1, borderColor: theme.borderSoft, borderRadius: 12, backgroundColor: theme.bgPanel, padding: 10, alignItems: 'center' },
-    centerTitle: { color: theme.textPrimary, fontWeight: '700', fontSize: 18, lineHeight: 24 },
-    centerHudLine: { textAlign: 'center', width: '100%' },
+    centerHud: { width: '100%', marginTop: 10, alignSelf: 'stretch', borderWidth: 1, borderColor: theme.borderSoft, borderRadius: 12, backgroundColor: theme.bgCard, padding: 10, alignItems: 'flex-start' },
+    centerTitle: { color: theme.textPrimary, fontWeight: '700', fontSize: 16, lineHeight: 20 },
+    centerHudLine: { textAlign: 'left', width: '100%' },
     lastDiscardBadge: { marginTop: 6, borderWidth: 1, borderColor: theme.borderSoft, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: theme.inputBg },
     lastDiscardBadgeFlash: { borderColor: theme.warning, backgroundColor: '#3A2A10' },
     lastDiscardText: { color: '#FEF3C7', fontWeight: '700', fontSize: 12 },
 
-    riversWrap: { width: '74%', minHeight: 300, alignSelf: 'center', marginTop: 14, borderWidth: 1, borderColor: theme.riverBorder, borderRadius: 12, padding: 10, backgroundColor: theme.riverBg },
-    bottomSeatWrap: { marginTop: 14, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', columnGap: 12 },
+    riversWrap: { width: '74%', minHeight: 300, alignSelf: 'center', marginTop: 0, borderWidth: 1, borderColor: theme.riverBorder, borderRadius: 12, padding: 10, backgroundColor: theme.riverBg },
+    bottomSeatWrap: { marginTop: 14, width: '74%', maxWidth: 980, alignSelf: 'center', flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'flex-start', columnGap: 12 },
     riverGrid: { alignItems: 'center', marginVertical: 2 },
     riverGridCompact: { width: '48%' },
     riverGridVertical: { width: '48%', flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center', columnGap: 6 },
-    riverRow: { flexDirection: 'row', gap: 4, minHeight: 30, justifyContent: 'center' },
+    riverRow: { flexDirection: 'row', gap: 5, minHeight: 40, justifyContent: 'center' },
     riverRowVertical: { flexDirection: 'column', minHeight: 0, gap: 4 },
     riverMiddle: { flexDirection: 'row', justifyContent: 'space-between', marginVertical: 6 },
-    riverPlaceholder: { width: 24, height: 34, borderRadius: 5, borderWidth: 1, borderColor: theme.riverBorder, backgroundColor: theme.riverBg },
+    riverGhostTile: { width: 29, height: 41, opacity: 0 },
+    riverGhostSide: { width: 41, height: 29, opacity: 0 },
 
     actionBarWrap: { marginTop: 12, backgroundColor: theme.bgCard, borderRadius: 12, padding: 10, borderWidth: 1, borderColor: theme.borderSoft },
     actionBarInline: { marginTop: 0, width: 360, maxWidth: '44%' },
+    actionBarHandRight: { marginTop: 0, width: 280, maxWidth: 320, marginLeft: 10, alignSelf: 'flex-start' },
     actionBarHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
     actionTitle: { color: theme.textPrimary, fontWeight: '700' },
     actionTimer: { color: theme.success, fontWeight: '700' },
@@ -808,6 +890,8 @@ function createStyles(theme: ThemeTokens) {
     countdownBarDanger: { backgroundColor: theme.danger },
     actionBar: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
     handArea: { marginTop: 12, borderTopWidth: 1, borderTopColor: theme.borderSoft, paddingTop: 10 },
+    handRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', columnGap: 10 },
+    tileRowHand: { flex: 1, justifyContent: 'flex-start' },
     actionToast: { alignSelf: 'center', marginTop: 8, backgroundColor: theme.toastBg, borderColor: theme.brand, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999 },
     actionToastText: { color: theme.toastText, fontWeight: '700' },
     settlementOverlay: { marginTop: 10, borderWidth: 1, borderColor: theme.borderSoft, borderRadius: 10, padding: 10, backgroundColor: theme.bgCard },
@@ -830,13 +914,13 @@ function createStyles(theme: ThemeTokens) {
     tileRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6, justifyContent: 'center' },
     tileRowDisabled: { opacity: 0.55 },
     tile: { width: 38, height: 58, borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, backgroundColor: '#FFFFFF', padding: 4, justifyContent: 'space-between', overflow: 'hidden' },
-    tileSmall: { width: 24, height: 34, borderRadius: 5, padding: 2 },
+    tileSmall: { width: 29, height: 41, borderRadius: 6, padding: 2 },
     tileImageHost: { padding: 0, justifyContent: 'center', alignItems: 'center' },
     tileImage: { width: 36, height: 56, borderRadius: 6 },
-    tileImageSmall: { width: 22, height: 32, borderRadius: 4 },
-    sideTile: { width: 34, height: 24, borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 5, backgroundColor: '#FFFFFF', paddingHorizontal: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', overflow: 'hidden' },
+    tileImageSmall: { width: 27, height: 39, borderRadius: 4 },
+    sideTile: { width: 41, height: 29, borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 6, backgroundColor: '#FFFFFF', paddingHorizontal: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', overflow: 'hidden' },
     sideTileImageHost: { paddingHorizontal: 0, justifyContent: 'center', alignItems: 'center' },
-    sideTileImageFull: { position: 'absolute', left: 1, top: 1, width: 32, height: 22, borderRadius: 4 },
+    sideTileImageFull: { position: 'absolute', left: 1, top: 1, width: 39, height: 27, borderRadius: 4 },
     sideTileMark: { fontSize: 9, fontWeight: '700' },
     sideTileRank: { fontSize: 16, fontWeight: '800', lineHeight: 18 },
     tileSel: { borderColor: theme.warning, transform: [{ translateY: -2 }] },

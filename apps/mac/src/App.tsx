@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Text, View, StyleSheet, TextInput, Pressable, ScrollView, useColorScheme, Image } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Text, View, StyleSheet, TextInput, Pressable, ScrollView, useColorScheme, Image, Animated } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { createLobbyRuntime, type LobbyViewState, type HandTile, type Meld, type LobbyPlayer } from './lobby-runtime';
 import { getTileAsset } from './tile-assets';
@@ -471,7 +471,8 @@ function SeatPanel({ styles, player, rematchReadySeats, vertical = false, side, 
     return Array.from({ length: inferMeldCount(raw.type) }, () => `${suitPrefix(m.tile.suit)}${m.tile.rank}`);
   });
   const concealedCount = isSelf ? 0 : Math.max(0, Number((player as any).handCount ?? 0));
-  const concealedTiles = Array.from({ length: concealedCount }, (_, i) => i);
+  const sideConcealedSlots = 14;
+  const concealedTiles = Array.from({ length: vertical && !isSelf ? sideConcealedSlots : concealedCount }, (_, i) => i);
   return (
     <View style={[
       styles.seatPanel,
@@ -501,14 +502,20 @@ function SeatPanel({ styles, player, rematchReadySeats, vertical = false, side, 
       </View>
       <View style={[styles.seatMeldPanel, isSelf && styles.seatMeldPanelSelfTransparent, vertical ? styles.seatMeldPanelVertical : styles.seatMeldPanelHorizontal]}>
         {vertical ? (
-          <View style={[styles.meldGroupWrap, compact && styles.meldGroupWrapCompact, styles.meldGroupWrapVerticalSingle]}>
+          <ScrollView
+            style={styles.meldVerticalScroller}
+            contentContainerStyle={[styles.meldGroupWrap, compact && styles.meldGroupWrapCompact, styles.meldGroupWrapVerticalSingle, styles.meldGroupWrapVerticalNoGap]}
+            showsVerticalScrollIndicator={false}
+          >
             {verticalMeldTiles.map((c, i) => (
               <SideMiniTile key={`${player.seat}-v-${i}-${c}`} styles={styles} code={c} side={side || 'left'} borderless enlarge={enlarge} />
             ))}
             {concealedTiles.map((i) => (
-              <SideMiniTile key={`${player.seat}-vh-${i}`} styles={styles} code="back" side={side || 'left'} borderless enlarge={enlarge} />
+              i < concealedCount
+                ? <SideMiniTile key={`${player.seat}-vh-${i}`} styles={styles} code="back" side={side || 'left'} borderless enlarge={enlarge} />
+                : <View key={`${player.seat}-vh-empty-${i}`} style={[styles.sideTile, enlarge && styles.sideTileEnlarged, styles.sideTileBorderless, styles.sideTileGhost]} />
             ))}
-          </View>
+          </ScrollView>
         ) : (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.meldInlineScroller} contentContainerStyle={[styles.meldGroupWrap, compact && styles.meldGroupWrapCompact, styles.meldGroupWrapInlineNowrap]}>
             {meldNodes}
@@ -652,39 +659,72 @@ function groupDiscardsBySeat(discards: { seat: number; tileCode: string; claimed
 
 type BtnVariant = 'primary' | 'secondary' | 'danger' | 'ghost' | 'accent';
 function Tile({ styles, code, small = false, river = false, borderless = false, selected = false, active = false, highlighted = false, onPress }: { styles: AppStyles; code: string; small?: boolean; river?: boolean; borderless?: boolean; selected?: boolean; active?: boolean; highlighted?: boolean; onPress?: () => void }) {
+  const pulseOpacity = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (!(highlighted && river)) {
+      pulseOpacity.setValue(1);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseOpacity, { toValue: 0.58, duration: 420, useNativeDriver: true }),
+        Animated.timing(pulseOpacity, { toValue: 1, duration: 420, useNativeDriver: true })
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [highlighted, river, pulseOpacity]);
   const pure = code.includes('@') ? code.split('@')[0] : code;
   const asset = getTileAsset(pure, 'upright');
   const [imgFailed, setImgFailed] = useState(false);
   const suit = pure[0]; const rank = Number(pure.slice(1)); const { label, color } = meta(suit);
   return (
-    <Pressable
-      onPress={onPress}
-      disabled={!onPress}
-      style={({ pressed }) => [styles.tile, small && styles.tileSmall, small && river && styles.tileSmallRiver, small && river && styles.tileSmallRiverBorderless, borderless && styles.tileBorderless, asset && styles.tileImageHost, selected && styles.tileSel, highlighted && styles.tileHighlight, !active && styles.tileInactive, !active && borderless && styles.tileInactiveBorderless, pressed && onPress && styles.tilePressed]}
-    >
-      {asset && !imgFailed ? (
-        <Image
-          source={asset}
-          style={[styles.tileImage, small && styles.tileImageSmall, small && river && styles.tileImageSmallRiver]}
-          resizeMode="contain"
-          onLoad={() => console.log('[tile-load]', pure)}
-          onError={(e) => {
-            console.warn('[tile-error]', pure, e?.nativeEvent);
-            setImgFailed(true);
-          }}
-        />
-      ) : (
-        <>
-          <Text style={[styles.corner, { color }]}>{label}</Text>
-          <Text style={[styles.rank, { color }]}>{rank}</Text>
-          <Text style={[styles.corner, { color, alignSelf: 'flex-end' }]}></Text>
-        </>
-      )}
-    </Pressable>
+    <Animated.View style={highlighted && river ? { opacity: pulseOpacity } : undefined}>
+      <Pressable
+        onPress={onPress}
+        disabled={!onPress}
+        style={({ pressed }) => [styles.tile, small && styles.tileSmall, small && river && styles.tileSmallRiver, small && river && styles.tileSmallRiverBorderless, borderless && styles.tileBorderless, asset && styles.tileImageHost, selected && styles.tileSel, highlighted && (river ? styles.tileHighlightRiver : styles.tileHighlight), !active && styles.tileInactive, !active && borderless && styles.tileInactiveBorderless, pressed && onPress && styles.tilePressed]}
+      >
+        {asset && !imgFailed ? (
+          <Image
+            source={asset}
+            style={[styles.tileImage, small && styles.tileImageSmall, small && river && styles.tileImageSmallRiver]}
+            resizeMode="contain"
+            onLoad={() => console.log('[tile-load]', pure)}
+            onError={(e) => {
+              console.warn('[tile-error]', pure, e?.nativeEvent);
+              setImgFailed(true);
+            }}
+          />
+        ) : (
+          <>
+            <Text style={[styles.corner, { color }]}>{label}</Text>
+            <Text style={[styles.rank, { color }]}>{rank}</Text>
+            <Text style={[styles.corner, { color, alignSelf: 'flex-end' }]}></Text>
+          </>
+        )}
+        {highlighted && river ? <View pointerEvents="none" style={styles.riverHighlightRingTile} /> : null}
+      </Pressable>
+    </Animated.View>
   );
 }
 function MiniTile({ styles, code, highlighted = false, river = false, borderless = false }: { styles: AppStyles; code: string; highlighted?: boolean; river?: boolean; borderless?: boolean }) { return <Tile styles={styles} code={code} small river={river} borderless={borderless} active highlighted={highlighted} />; }
 function SideMiniTile({ styles, code, side, highlighted = false, river = false, borderless = false, enlarge = false }: { styles: AppStyles; code: string; side: 'left' | 'right'; highlighted?: boolean; river?: boolean; borderless?: boolean; enlarge?: boolean }) {
+  const pulseOpacity = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (!(highlighted && river)) {
+      pulseOpacity.setValue(1);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseOpacity, { toValue: 0.58, duration: 420, useNativeDriver: true }),
+        Animated.timing(pulseOpacity, { toValue: 1, duration: 420, useNativeDriver: true })
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [highlighted, river, pulseOpacity]);
   const asset = getTileAsset(code, side === 'left' ? 'side_left' : 'side_right');
   const [imgFailed, setImgFailed] = useState(false);
   const pure = code.includes('@') ? code.split('@')[0] : code;
@@ -692,26 +732,29 @@ function SideMiniTile({ styles, code, side, highlighted = false, river = false, 
   const rank = Number(pure.slice(1));
   const { label, color } = meta(suit);
   return (
-    <View style={[styles.sideTile, river && styles.sideTileRiver, enlarge && styles.sideTileEnlarged, river && styles.sideTileRiverBorderless, borderless && styles.sideTileBorderless, asset && styles.sideTileImageHost, highlighted && styles.tileHighlight]}>
-      {asset && !imgFailed ? (
-        <Image
-          source={asset}
-          style={[styles.sideTileImageFull, river && styles.sideTileImageFullRiver]}
-          resizeMode="contain"
-          onLoad={() => console.log('[side-tile-load]', pure, side)}
-          onError={(e) => {
-            console.warn('[side-tile-error]', pure, side, e?.nativeEvent);
-            setImgFailed(true);
-          }}
-        />
-      ) : (
-        <>
-          {side === 'right' ? <Text style={[styles.sideTileMark, { color }]}>{label}</Text> : null}
-          <Text style={[styles.sideTileRank, { color }]}>{rank}</Text>
-          {side === 'left' ? <Text style={[styles.sideTileMark, { color }]}>{label}</Text> : null}
-        </>
-      )}
-    </View>
+    <Animated.View style={highlighted && river ? { opacity: pulseOpacity } : undefined}>
+      <View style={[styles.sideTile, river && styles.sideTileRiver, enlarge && styles.sideTileEnlarged, river && styles.sideTileRiverBorderless, borderless && styles.sideTileBorderless, asset && styles.sideTileImageHost, highlighted && (river ? styles.tileHighlightRiver : styles.tileHighlight)]}>
+        {asset && !imgFailed ? (
+          <Image
+            source={asset}
+            style={[styles.sideTileImageFull, river && styles.sideTileImageFullRiver]}
+            resizeMode="contain"
+            onLoad={() => console.log('[side-tile-load]', pure, side)}
+            onError={(e) => {
+              console.warn('[side-tile-error]', pure, side, e?.nativeEvent);
+              setImgFailed(true);
+            }}
+          />
+        ) : (
+          <>
+            {side === 'right' ? <Text style={[styles.sideTileMark, { color }]}>{label}</Text> : null}
+            <Text style={[styles.sideTileRank, { color }]}>{rank}</Text>
+            {side === 'left' ? <Text style={[styles.sideTileMark, { color }]}>{label}</Text> : null}
+          </>
+        )}
+        {highlighted && river ? <View pointerEvents="none" style={styles.riverHighlightRingSide} /> : null}
+      </View>
+    </Animated.View>
   );
 }
 function meta(s: string) { if (s === 'w') return { label: '萬', color: '#dc2626' }; if (s === 't') return { label: '条', color: '#16a34a' }; return { label: '筒', color: '#2563eb' }; }
@@ -781,6 +824,10 @@ function buildScoreFeedLines(state: LobbyViewState, latestRound: any) {
 }
 
 function createStyles(theme: ThemeTokens) {
+  const sideReservedTiles = 14;
+  const sideTileHeight = 35;
+  const sideTileGap = 4;
+  const sideReservedHeight = sideReservedTiles * sideTileHeight + (sideReservedTiles - 1) * sideTileGap;
   return StyleSheet.create({
     page: { flex: 1, backgroundColor: theme.bgApp },
     wrap: { padding: 16, alignItems: 'flex-start' },
@@ -883,7 +930,7 @@ function createStyles(theme: ThemeTokens) {
     },
     seatMeldPanelSelfTransparent: { borderWidth: 0, backgroundColor: 'transparent' },
     seatMeldPanelHorizontal: { flex: 1, minWidth: 140, minHeight: 0, paddingVertical: 1, alignSelf: 'center' },
-    seatMeldPanelVertical: { alignSelf: 'center', alignItems: 'center' },
+    seatMeldPanelVertical: { alignSelf: 'center', alignItems: 'center', height: sideReservedHeight, minHeight: sideReservedHeight, maxHeight: sideReservedHeight, overflow: 'hidden' },
     seatNameTurn: { color: '#BFDBFE' },
     seatName: { color: theme.textPrimary, fontWeight: '700', fontSize: 16, lineHeight: 20 },
     seatNameCompact: { fontSize: 12, lineHeight: 15, flexWrap: 'wrap' },
@@ -892,7 +939,9 @@ function createStyles(theme: ThemeTokens) {
     meldInlineScroller: { flex: 1, minWidth: 140, maxHeight: 56 },
     meldGroupWrapInline: { marginTop: 0, justifyContent: 'flex-end', maxWidth: 220 },
     meldGroupWrapVerticalSingle: { marginTop: 4, flexDirection: 'column', flexWrap: 'nowrap', alignItems: 'center', justifyContent: 'flex-start' },
+    meldGroupWrapVerticalNoGap: { gap: 0 },
     meldGroupWrapInlineNowrap: { marginTop: 0, flexWrap: 'nowrap', alignItems: 'center', paddingRight: 2 },
+    meldVerticalScroller: { flex: 1, minHeight: 0, maxHeight: '100%', alignSelf: 'stretch' },
     meldGroup: { borderWidth: 1, borderColor: theme.borderSoft, borderRadius: 8, padding: 3, backgroundColor: 'transparent' },
     meldTilesRow: { flexDirection: 'row', gap: 2 },
 
@@ -903,7 +952,7 @@ function createStyles(theme: ThemeTokens) {
     lastDiscardBadgeFlash: { borderColor: theme.warning, backgroundColor: '#3A2A10' },
     lastDiscardText: { color: '#FEF3C7', fontWeight: '700', fontSize: 12 },
 
-    riversWrap: { width: '74%', minHeight: 300, alignSelf: 'center', marginTop: 0, borderWidth: 1, borderColor: theme.riverBorder, borderRadius: 12, padding: 10, backgroundColor: theme.riverBg },
+    riversWrap: { width: '74%', minHeight: 300, alignSelf: 'flex-start', marginTop: 0, borderWidth: 1, borderColor: theme.riverBorder, borderRadius: 12, padding: 10, backgroundColor: theme.riverBg },
     bottomSeatWrap: { marginTop: 14, width: '74%', maxWidth: 980, alignSelf: 'center', flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'flex-start', columnGap: 12 },
     riverGrid: { alignItems: 'center', marginVertical: 2 },
     riverGridCompact: { width: '48%' },
@@ -914,8 +963,8 @@ function createStyles(theme: ThemeTokens) {
     riverRowStart: { justifyContent: 'flex-start' },
     riverRowVertical: { flexDirection: 'column', minHeight: 0, gap: 4 },
     riverMiddle: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginVertical: 6 },
-    riverGhostTile: { width: 29, height: 41, opacity: 0 },
-    riverGhostSide: { width: 41, height: 29, opacity: 0 },
+    riverGhostTile: { width: 35, height: 49, opacity: 0 },
+    riverGhostSide: { width: 49, height: 35, opacity: 0 },
 
     actionBarWrap: { marginTop: 12, backgroundColor: theme.bgCard, borderRadius: 12, padding: 10, borderWidth: 1, borderColor: theme.borderSoft },
     actionBarInline: { marginTop: 0, width: 360, maxWidth: '44%' },
@@ -955,25 +1004,30 @@ function createStyles(theme: ThemeTokens) {
     tileRowDisabled: { opacity: 0.55 },
     tile: { width: 38, height: 58, borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, backgroundColor: '#FFFFFF', padding: 4, justifyContent: 'space-between', overflow: 'hidden' },
     tileSmall: { width: 29, height: 41, borderRadius: 6, padding: 2 },
-    tileSmallRiver: { width: 29, height: 41, overflow: 'visible' },
+    tileSmallRiver: { width: 35, height: 49, padding: 0, overflow: 'visible' },
     tileSmallRiverBorderless: { borderWidth: 0, backgroundColor: 'transparent' },
     tileBorderless: { borderWidth: 0, backgroundColor: 'transparent' },
     tileImageHost: { padding: 0, justifyContent: 'center', alignItems: 'center' },
     tileImage: { width: 36, height: 56, borderRadius: 6 },
     tileImageSmall: { width: 27, height: 39, borderRadius: 4 },
-    tileImageSmallRiver: { width: 32, height: 47 },
+    tileImageSmallRiver: { width: '100%', height: '100%', borderRadius: 5 },
     sideTile: { width: 41, height: 29, borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 6, backgroundColor: 'transparent', paddingHorizontal: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', overflow: 'hidden' },
-    sideTileEnlarged: { width: 49, height: 35 },
-    sideTileRiver: { width: 41, height: 29, overflow: 'visible' },
+    sideTileEnlarged: { width: 44, height: 32 },
+    sideTileRiver: { width: 49, height: 35, paddingHorizontal: 0, overflow: 'visible' },
     sideTileRiverBorderless: { borderWidth: 0, backgroundColor: 'transparent' },
     sideTileBorderless: { borderWidth: 0, backgroundColor: 'transparent' },
+    sideTileGhost: { opacity: 0 },
     sideTileImageHost: { paddingHorizontal: 0, justifyContent: 'center', alignItems: 'center' },
     sideTileImageFull: { width: '100%', height: '100%', borderRadius: 4 },
-    sideTileImageFullRiver: { position: 'absolute', left: -4, top: -3, width: 49, height: 35 },
+    sideTileImageFullRiver: { width: '100%', height: '100%', borderRadius: 5 },
     sideTileMark: { fontSize: 9, fontWeight: '700' },
     sideTileRank: { fontSize: 16, fontWeight: '800', lineHeight: 18 },
     tileSel: { borderColor: theme.warning, transform: [{ translateY: -2 }] },
     tileHighlight: { borderColor: '#FDE047', borderWidth: 3, shadowColor: '#FDE047', shadowOpacity: 0.9, shadowRadius: 9, backgroundColor: '#FFFDEB' },
+    tileHighlightRiver: { borderWidth: 0, backgroundColor: 'transparent', shadowColor: '#FDE047', shadowOpacity: 0.95, shadowRadius: 10, shadowOffset: { width: 0, height: 0 }, zIndex: 3 },
+    // Match enlarged river tile bounds, not the base container bounds.
+    riverHighlightRingTile: { position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, borderWidth: 2, borderColor: '#FDE047', borderRadius: 5 },
+    riverHighlightRingSide: { position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, borderWidth: 2, borderColor: '#FDE047', borderRadius: 5 },
     tilePressed: { transform: [{ translateY: 1 }] },
     tileInactive: { opacity: 0.72, backgroundColor: '#F3F4F6' },
     tileInactiveBorderless: { backgroundColor: 'transparent' },

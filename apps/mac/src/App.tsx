@@ -443,12 +443,21 @@ function InputField({ styles, theme, value, onChangeText, placeholder, compact =
 
 function SeatPanel({ styles, player, rematchReadySeats, vertical = false, side, isTurn = false, isSelf = false }: { styles: AppStyles; player?: LobbyPlayer; rematchReadySeats: number[]; vertical?: boolean; side?: 'left' | 'right'; isTurn?: boolean; isSelf?: boolean }) {
   if (!player) return <View style={[styles.seatPanel, vertical && styles.seatPanelVertical, side === 'left' && styles.seatPanelLeft, side === 'right' && styles.seatPanelRight]}><Text style={styles.meta}>-</Text></View>;
+  const compact = true;
   return (
-    <View style={[styles.seatPanel, vertical && styles.seatPanelVertical, side === 'left' && styles.seatPanelLeft, side === 'right' && styles.seatPanelRight, isTurn && styles.seatPanelTurn]}>
-      <Text style={[styles.seatName, isTurn && styles.seatNameTurn]}>S{player.seat} {player.name}{isTurn ? ' ●' : ''}</Text>
-      <Text style={styles.meta}>分数: {player.totalScore} {rematchReadySeats.includes(player.seat) ? '✅已准备' : ''}</Text>
-      <Text style={styles.meta}>定缺: {lackSuitToZh(player.lackSuit)} · {player.online ? '在线' : '离线'}</Text>
-      <View style={styles.meldGroupWrap}>
+    <View style={[styles.seatPanel, styles.seatPanelOpponent, vertical && styles.seatPanelVertical, vertical && styles.seatPanelOpponentVertical, side === 'left' && styles.seatPanelLeft, side === 'right' && styles.seatPanelRight, isTurn && styles.seatPanelTurn]}>
+      <Text style={[styles.seatName, compact && styles.seatNameCompact, isTurn && styles.seatNameTurn]}>S{player.seat} {player.name}{isTurn ? ' ●' : ''}</Text>
+      {compact ? (
+        <Text style={[styles.meta, styles.metaCompact]}>
+          分:{player.totalScore} · 缺:{lackSuitToZh(player.lackSuit)} · {player.online ? '在线' : '离线'} {rematchReadySeats.includes(player.seat) ? '· ✅' : ''}
+        </Text>
+      ) : (
+        <>
+          <Text style={styles.meta}>分数: {player.totalScore} {rematchReadySeats.includes(player.seat) ? '✅已准备' : ''}</Text>
+          <Text style={styles.meta}>定缺: {lackSuitToZh(player.lackSuit)} · {player.online ? '在线' : '离线'}</Text>
+        </>
+      )}
+      <View style={[styles.meldGroupWrap, compact && styles.meldGroupWrapCompact]}>
         {(player.melds || [])
           .filter((m) => isMeldVisible(m, isSelf))
           .slice(0, 4)
@@ -464,12 +473,9 @@ function MeldGroupView({ styles, meld }: { styles: AppStyles; meld: Meld }) {
   const tiles = rawTiles && rawTiles.length > 0
     ? rawTiles.map((t: any) => `${suitPrefix(t.suit)}${t.rank}`)
     : Array.from({ length: inferMeldCount(raw.type) }, () => `${suitPrefix(meld.tile.suit)}${meld.tile.rank}`);
-  const badge = inferMeldBadge(raw.type);
-
   return (
     <View style={styles.meldGroup}>
       <View style={styles.meldTilesRow}>{tiles.map((c, i) => <MiniTile key={`${c}-${i}`} styles={styles} code={c} />)}</View>
-      <Text style={styles.meldBadge}>{badge}</Text>
     </View>
   );
 }
@@ -496,28 +502,28 @@ function DiscardRivers({ styles, discardsBySeat, mySeat, reactionTarget }: { sty
     <View style={styles.riversWrap}>
       <RiverGrid styles={styles} tiles={discardsBySeat[topSeat] || []} highlightCode={reactionTarget?.seat === topSeat ? reactionTarget.tileCode : undefined} />
       <View style={styles.riverMiddle}>
-        <RiverGrid styles={styles} tiles={discardsBySeat[leftSeat] || []} compact highlightCode={reactionTarget?.seat === leftSeat ? reactionTarget.tileCode : undefined} />
-        <RiverGrid styles={styles} tiles={discardsBySeat[rightSeat] || []} compact highlightCode={reactionTarget?.seat === rightSeat ? reactionTarget.tileCode : undefined} />
+        <RiverGrid styles={styles} tiles={discardsBySeat[leftSeat] || []} compact vertical highlightCode={reactionTarget?.seat === leftSeat ? reactionTarget.tileCode : undefined} />
+        <RiverGrid styles={styles} tiles={discardsBySeat[rightSeat] || []} compact vertical highlightCode={reactionTarget?.seat === rightSeat ? reactionTarget.tileCode : undefined} />
       </View>
       <RiverGrid styles={styles} tiles={discardsBySeat[mySeat] || []} highlightCode={reactionTarget?.seat === mySeat ? reactionTarget.tileCode : undefined} />
     </View>
   );
 }
 
-function RiverGrid({ styles, tiles, compact = false, highlightCode }: { styles: AppStyles; tiles: string[]; compact?: boolean; highlightCode?: string }) {
-  const perRow = compact ? 5 : 6;
-  const rows = Math.max(2, Math.ceil(tiles.length / perRow));
+function RiverGrid({ styles, tiles, compact = false, vertical = false, highlightCode }: { styles: AppStyles; tiles: string[]; compact?: boolean; vertical?: boolean; highlightCode?: string }) {
+  const perLine = vertical ? 2 : (compact ? 5 : 6);
+  const lineCount = Math.max(2, Math.ceil(tiles.length / perLine));
   const padded = [...tiles];
-  while (padded.length < rows * perRow) padded.push('');
+  while (padded.length < lineCount * perLine) padded.push('');
   const highlightIndex = highlightCode ? tiles.lastIndexOf(highlightCode) : -1;
   return (
-    <View style={[styles.riverGrid, compact && styles.riverGridCompact]}>
-      {Array.from({ length: rows }).map((_, r) => (
-        <View key={r} style={styles.riverRow}>
-          {padded.slice(r * perRow, (r + 1) * perRow).map((c, i) => {
-            const index = r * perRow + i;
-            if (!c) return <View key={`${r}-${i}-x`} style={styles.riverPlaceholder} />;
-            return <MiniTile key={`${r}-${i}-${c}`} styles={styles} code={c} highlighted={index === highlightIndex} />;
+    <View style={[styles.riverGrid, compact && styles.riverGridCompact, vertical && styles.riverGridVertical]}>
+      {Array.from({ length: lineCount }).map((_, line) => (
+        <View key={line} style={[styles.riverRow, vertical && styles.riverRowVertical]}>
+          {padded.slice(line * perLine, (line + 1) * perLine).map((c, i) => {
+            const index = line * perLine + i;
+            if (!c) return <View key={`${line}-${i}-x`} style={styles.riverPlaceholder} />;
+            return <MiniTile key={`${line}-${i}-${c}`} styles={styles} code={c} highlighted={index === highlightIndex} />;
           })}
         </View>
       ))}
@@ -535,13 +541,6 @@ function inferMeldCount(type: string) {
   const t = String(type || '').toLowerCase();
   if (t.includes('gang') || t.includes('kong') || t.includes('杠')) return 4;
   return 3;
-}
-
-function inferMeldBadge(type: string) {
-  const t = String(type || '').toLowerCase();
-  if (t.includes('peng') || t.includes('碰')) return '碰';
-  if (t.includes('gang') || t.includes('kong') || t.includes('杠')) return '杠';
-  return '组合';
 }
 
 function findAnGangCandidates(hand: HandTile[]) { const m = new Map<string, HandTile[]>(); for (const t of hand) { const k = `${t.suit}-${t.rank}`; m.set(k, [...(m.get(k) || []), t]); } return [...m.values()].filter((v) => v.length >= 4).map((v) => v[0]); }
@@ -663,6 +662,7 @@ function createStyles(theme: ThemeTokens) {
     btnDisabled: { opacity: 0.55 },
     btnTextDisabled: { color: '#9CA3AF' },
     meta: { color: theme.textSecondary, marginTop: 4, fontSize: 12 },
+    metaCompact: { marginTop: 2, fontSize: 11, lineHeight: 13 },
 
     tablePanel: { flex: 1, borderWidth: 1, borderColor: theme.borderSoft, borderRadius: 14, padding: 12, backgroundColor: theme.bgPanel },
     tableHeader: { marginBottom: 10 },
@@ -679,16 +679,26 @@ function createStyles(theme: ThemeTokens) {
     riversRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', columnGap: 10, marginTop: 10 },
 
     seatPanel: { minWidth: 210, minHeight: 86, borderWidth: 1, borderColor: theme.borderSoft, borderRadius: 12, backgroundColor: theme.bgPanel, padding: 10, alignSelf: 'center' },
+    seatPanelOpponent: {
+      minWidth: 184,
+      minHeight: 64,
+      paddingVertical: 6,
+      paddingHorizontal: 8,
+      borderRadius: 10,
+      backgroundColor: theme.inputBg
+    },
     seatPanelVertical: { minWidth: 136, width: 136 },
+    seatPanelOpponentVertical: { minWidth: 124, width: 124 },
     seatPanelLeft: { marginTop: 0, alignSelf: 'center' },
     seatPanelRight: { marginTop: 0, alignSelf: 'center' },
     seatPanelTurn: { borderColor: 'rgba(59,130,246,0.7)', shadowColor: theme.brand, shadowOpacity: 0.3, shadowRadius: 8 },
     seatNameTurn: { color: '#BFDBFE' },
-    seatName: { color: theme.textPrimary, fontWeight: '700' },
+    seatName: { color: theme.textPrimary, fontWeight: '700', fontSize: 16, lineHeight: 20 },
+    seatNameCompact: { fontSize: 12, lineHeight: 15 },
     meldGroupWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 },
+    meldGroupWrapCompact: { gap: 4, marginTop: 4 },
     meldGroup: { borderWidth: 1, borderColor: theme.borderSoft, borderRadius: 8, padding: 3, backgroundColor: theme.inputBg },
     meldTilesRow: { flexDirection: 'row', gap: 2 },
-    meldBadge: { color: theme.textSecondary, fontSize: 10, textAlign: 'center', marginTop: 2 },
 
     centerHud: { width: '94%', maxWidth: 900, alignSelf: 'center', borderWidth: 1, borderColor: theme.borderSoft, borderRadius: 12, backgroundColor: theme.bgPanel, padding: 10, alignItems: 'center' },
     centerTitle: { color: theme.textPrimary, fontWeight: '700', fontSize: 18, lineHeight: 24 },
@@ -701,7 +711,9 @@ function createStyles(theme: ThemeTokens) {
     bottomSeatWrap: { marginTop: 14, alignItems: 'center' },
     riverGrid: { alignItems: 'center', marginVertical: 2 },
     riverGridCompact: { width: '48%' },
+    riverGridVertical: { width: '48%', alignItems: 'center' },
     riverRow: { flexDirection: 'row', gap: 4, minHeight: 30, justifyContent: 'center' },
+    riverRowVertical: { flexDirection: 'column', minHeight: 0, gap: 4 },
     riverMiddle: { flexDirection: 'row', justifyContent: 'space-between', marginVertical: 6 },
     riverPlaceholder: { width: 24, height: 34, borderRadius: 5, borderWidth: 1, borderColor: theme.riverBorder, backgroundColor: theme.riverBg },
 

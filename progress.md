@@ -230,3 +230,14 @@ Original prompt: 我希望在这个麻将游戏中加入机器人功能。当人
   - `centerHud` 宽度从 90% 提升到 94%，最大宽度提升到 900，顶部信息条更贴合桌面宽度。
   - `riversWrap` 宽度从 62% 提升到 74%，并增加 `minHeight: 300`，中央弃牌/牌阵区域视觉占比明显提升。
   - `bottomSeatWrap` 间距上调，底部玩家区与中区分隔更稳定。
+
+### 2026-03-03（对家信息卡扁平化 + 去除碰杠文字标签）
+- 按反馈调整 `apps/mac/src/App.tsx`：
+  - 对家信息卡新增 `seatPanelOpponent` / `seatPanelOpponentVertical`，缩小卡片宽高与内边距，整体更扁平。
+  - 对家卡片背景改为更轻层级（`theme.inputBg`），降低视觉重量。
+  - 碰/杠牌组下方文字标签（“碰”“杠”）已移除，仅保留牌面展示。
+- 验证：`npm test` 通过（25/25）。
+- 继续压缩对家卡片信息密度：
+  - 对家卡标题字号下调（`seatNameCompact`）。
+  - 分数/定缺/在线状态合并为单行（`metaCompact`）。
+  - 对家卡牌组区间距继续收紧（`meldGroupWrapCompact`）。

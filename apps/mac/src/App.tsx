@@ -320,11 +320,6 @@ export default function App(): JSX.Element {
             </View>
 
             <View style={styles.tablePanel}>
-            <View style={styles.tableHeader}>
-              <Text style={styles.tableTitle}>{t(lang, 'table')}</Text>
-              <Text style={styles.meta}>{t(lang, 'connected')}: {state.connected ? 'Yes' : 'No'} · {t(lang, 'room')}: {state.roomId || '-'} · {t(lang, 'phase')}: {state.gamePhase || '-'}</Text>
-            </View>
-
             <View style={styles.tableSurface}>
               <SeatPanel styles={styles} player={seatMap.top} rematchReadySeats={state.rematchReadySeats} isTurn={state.turnSeat === seatMap.top?.seat} isSelf={false} />
               <View style={styles.riversRow}>
@@ -558,32 +553,65 @@ function DiscardRivers({ styles, discardsBySeat, mySeat, reactionTarget }: { sty
   const rightSeat = (mySeat + 3) % 4;
   return (
     <View style={styles.riversWrap}>
-      <RiverGrid styles={styles} tiles={discardsBySeat[topSeat] || []} highlightCode={reactionTarget?.seat === topSeat ? reactionTarget.tileCode : undefined} />
+      <RiverGrid styles={styles} tiles={discardsBySeat[topSeat] || []} fromTop startOffsetPercent={25} highlightCode={reactionTarget?.seat === topSeat ? reactionTarget.tileCode : undefined} />
       <View style={styles.riverMiddle}>
-        <RiverGrid styles={styles} tiles={discardsBySeat[leftSeat] || []} compact vertical verticalSide="left" highlightCode={reactionTarget?.seat === leftSeat ? reactionTarget.tileCode : undefined} />
-        <RiverGrid styles={styles} tiles={discardsBySeat[rightSeat] || []} compact vertical verticalSide="right" highlightCode={reactionTarget?.seat === rightSeat ? reactionTarget.tileCode : undefined} />
+        <RiverGrid styles={styles} tiles={discardsBySeat[leftSeat] || []} compact vertical verticalSide="left" fromStart startOffsetPercent={25} highlightCode={reactionTarget?.seat === leftSeat ? reactionTarget.tileCode : undefined} />
+        <RiverGrid styles={styles} tiles={discardsBySeat[rightSeat] || []} compact vertical verticalSide="right" fromEnd startOffsetPercent={25} highlightCode={reactionTarget?.seat === rightSeat ? reactionTarget.tileCode : undefined} />
       </View>
-      <RiverGrid styles={styles} tiles={discardsBySeat[mySeat] || []} highlightCode={reactionTarget?.seat === mySeat ? reactionTarget.tileCode : undefined} />
+      <RiverGrid styles={styles} tiles={discardsBySeat[mySeat] || []} fromBottom startOffsetPercent={25} highlightCode={reactionTarget?.seat === mySeat ? reactionTarget.tileCode : undefined} />
     </View>
   );
 }
 
-function RiverGrid({ styles, tiles, compact = false, vertical = false, verticalSide, highlightCode }: { styles: AppStyles; tiles: string[]; compact?: boolean; vertical?: boolean; verticalSide?: 'left' | 'right'; highlightCode?: string }) {
+function RiverGrid({ styles, tiles, compact = false, vertical = false, fromBottom = false, fromTop = false, fromStart = false, fromEnd = false, startOffsetPercent, verticalSide, highlightCode }: { styles: AppStyles; tiles: string[]; compact?: boolean; vertical?: boolean; fromBottom?: boolean; fromTop?: boolean; fromStart?: boolean; fromEnd?: boolean; startOffsetPercent?: number; verticalSide?: 'left' | 'right'; highlightCode?: string }) {
   const perLine = 8;
   const lineCount = 3;
   const visibleTiles = tiles.slice(-perLine * lineCount);
-  const padded = [...visibleTiles];
-  while (padded.length < lineCount * perLine) padded.push('');
-  const highlightIndex = highlightCode ? visibleTiles.lastIndexOf(highlightCode) : -1;
+  const slotCount = lineCount * perLine;
+  const padded = Array.from({ length: slotCount }, () => '');
+  // Side rivers should start filling from the first slot directly (no leading empty slots).
+  const topOffsetSlots = 0;
+  if (fromBottom) {
+    for (let i = 0; i < visibleTiles.length; i += 1) {
+      const lineFromBottom = Math.floor(i / perLine);
+      const col = i % perLine;
+      const line = lineCount - 1 - lineFromBottom;
+      if (line < 0) continue;
+      padded[line * perLine + col] = visibleTiles[i];
+    }
+  } else if (fromTop) {
+    for (let i = 0; i < visibleTiles.length; i += 1) {
+      const line = Math.floor(i / perLine);
+      const col = i % perLine;
+      if (line >= lineCount) continue;
+      padded[line * perLine + col] = visibleTiles[i];
+    }
+  } else {
+    let startIndex = 0;
+    if (fromEnd) {
+      startIndex = Math.max(0, slotCount - visibleTiles.length - topOffsetSlots);
+    } else if (fromStart) {
+      startIndex = topOffsetSlots;
+    }
+    for (let i = 0; i < visibleTiles.length; i += 1) {
+      const idx = startIndex + i;
+      if (idx >= slotCount) break;
+      padded[idx] = visibleTiles[i];
+    }
+  }
+  const highlightIndex = highlightCode ? padded.lastIndexOf(highlightCode) : -1;
   return (
     <View style={[
       styles.riverGrid,
       compact && styles.riverGridCompact,
-      vertical && styles.riverGridVertical
+      vertical && styles.riverGridVertical,
+      typeof startOffsetPercent === 'number' && !vertical && { marginLeft: `${startOffsetPercent}%`, width: `${100 - startOffsetPercent}%`, alignItems: 'flex-start' },
+      verticalSide === 'left' && styles.riverGridVerticalLeft,
+      verticalSide === 'right' && styles.riverGridVerticalRight
     ]}
     >
       {Array.from({ length: lineCount }).map((_, line) => (
-        <View key={line} style={[styles.riverRow, vertical && styles.riverRowVertical]}>
+        <View key={line} style={[styles.riverRow, vertical && styles.riverRowVertical, (fromBottom || fromTop) && typeof startOffsetPercent === 'number' && styles.riverRowStart]}>
           {padded.slice(line * perLine, (line + 1) * perLine).map((c, i) => {
             const index = line * perLine + i;
             if (!c) return <View key={`${line}-${i}-x`} style={verticalSide ? styles.riverGhostSide : styles.riverGhostTile} />;
@@ -760,7 +788,7 @@ function createStyles(theme: ThemeTokens) {
       shadowRadius: 14
     },
     contentRow: { flexDirection: 'row', alignItems: 'flex-start', columnGap: 14 },
-    managePanel: { width: 280, borderWidth: 1, borderColor: theme.borderSoft, borderRadius: 14, padding: 12, backgroundColor: theme.bgPanel },
+    managePanel: { width: 224, borderWidth: 1, borderColor: theme.borderSoft, borderRadius: 14, padding: 12, backgroundColor: theme.bgPanel },
     manageSection: { marginTop: 8, borderWidth: 1, borderColor: theme.borderSoft, borderRadius: 12, padding: 10, backgroundColor: theme.bgCard },
     panelTitle: { color: theme.textPrimary, fontWeight: '700', marginBottom: 2, fontSize: 17 },
     scoreFeedPanel: { marginTop: 10, borderWidth: 1, borderColor: theme.borderSoft, borderRadius: 12, padding: 10, backgroundColor: theme.bgCard, maxHeight: 360 },
@@ -871,9 +899,12 @@ function createStyles(theme: ThemeTokens) {
     riverGrid: { alignItems: 'center', marginVertical: 2 },
     riverGridCompact: { width: '48%' },
     riverGridVertical: { width: '48%', flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center', columnGap: 6 },
+    riverGridVerticalLeft: { justifyContent: 'flex-start' },
+    riverGridVerticalRight: { justifyContent: 'flex-end' },
     riverRow: { flexDirection: 'row', gap: 5, minHeight: 40, justifyContent: 'center' },
+    riverRowStart: { justifyContent: 'flex-start' },
     riverRowVertical: { flexDirection: 'column', minHeight: 0, gap: 4 },
-    riverMiddle: { flexDirection: 'row', justifyContent: 'space-between', marginVertical: 6 },
+    riverMiddle: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginVertical: 6 },
     riverGhostTile: { width: 29, height: 41, opacity: 0 },
     riverGhostSide: { width: 41, height: 29, opacity: 0 },
 

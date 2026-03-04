@@ -114,8 +114,6 @@ export default function App(): JSX.Element {
   const [exchangeSelected, setExchangeSelected] = useState<string[]>([]);
   const [lastDiscardFlash, setLastDiscardFlash] = useState(false);
   const [scoreFeedExpanded, setScoreFeedExpanded] = useState(false);
-  const [imgProbe, setImgProbe] = useState<{ load: number; error: number }>({ load: 0, error: 0 });
-  const [imgLastError, setImgLastError] = useState('');
   const [settlementModalVisible, setSettlementModalVisible] = useState(false);
   const [lastSettlementRound, setLastSettlementRound] = useState<number | null>(null);
   const [state, setState] = useState<LobbyViewState>({
@@ -193,12 +191,6 @@ export default function App(): JSX.Element {
     });
   };
 
-  const sampleTile = getTileAsset('w5', 'upright');
-  const handAssetProbe = state.yourHandTiles.slice(0, 6).map((tile) => {
-    const pure = tile.code.includes('@') ? tile.code.split('@')[0] : tile.code;
-    return `${pure}:${getTileAsset(pure, 'upright') ? 'Y' : 'N'}`;
-  }).join(' ');
-  const firstHandAsset = state.yourHandTiles[0] ? getTileAsset(state.yourHandTiles[0].code, 'upright') : null;
 
   const genRandomName = () => {
     const p = ['雀友', '牌侠', '听牌王', '川麻客', '杠上花'];
@@ -315,27 +307,6 @@ export default function App(): JSX.Element {
             <View style={styles.tableHeader}>
               <Text style={styles.tableTitle}>{t(lang, 'table')}</Text>
               <Text style={styles.meta}>{t(lang, 'connected')}: {state.connected ? 'Yes' : 'No'} · {t(lang, 'room')}: {state.roomId || '-'} · {t(lang, 'phase')}: {state.gamePhase || '-'}</Text>
-              <View style={styles.imageProbeRow}>
-                <Text style={styles.meta}>img probe L:{imgProbe.load} E:{imgProbe.error}</Text>
-                {sampleTile ? (
-                  <Image
-                    source={sampleTile}
-                    style={styles.imageProbeTile}
-                    resizeMode="contain"
-                    onLoad={() => setImgProbe((v) => ({ ...v, load: v.load + 1 }))}
-                    onError={(e) => {
-                      console.warn('[img-probe-error]', e?.nativeEvent);
-                      setImgLastError(`probe: ${JSON.stringify(e?.nativeEvent || {})}`);
-                      setImgProbe((v) => ({ ...v, error: v.error + 1 }));
-                    }}
-                  />
-                ) : null}
-                {firstHandAsset ? (
-                  <Image source={firstHandAsset} style={styles.imageProbeTile} resizeMode="contain" />
-                ) : null}
-              </View>
-              <Text style={styles.meta}>hand asset probe: {handAssetProbe || '-'}</Text>
-              {imgLastError ? <Text style={styles.imageProbeError}>{imgLastError}</Text> : null}
             </View>
 
             <View style={styles.tableSurface}>

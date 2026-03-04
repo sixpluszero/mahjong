@@ -241,3 +241,11 @@ Original prompt: 我希望在这个麻将游戏中加入机器人功能。当人
   - 对家卡标题字号下调（`seatNameCompact`）。
   - 分数/定缺/在线状态合并为单行（`metaCompact`）。
   - 对家卡牌组区间距继续收紧（`meldGroupWrapCompact`）。
+- 操作区交互调整：
+  - 不再在“无可执行动作”时显示禁用的“自摸胡”。
+  - 动作区迁移到自家信息卡左侧（底部并排布局），包含倒计时与响应/杠/胡按钮。
+  - 暗杠/补杠按钮并入动作区，不再在桌面中段零散显示。
+- 高清牌图资源接入（`apps/mac/src`）：
+  - 新增 `tile-assets.ts` 静态映射，解决 RN 动态 require 限制。
+  - `Tile`/`SideMiniTile` 优先渲染 PNG 资源（竖牌+左右横牌），文本绘制仅保留 fallback。
+  - 资源目录新增 `assets/tiles/hd`：竖牌由 SVG 转 PNG，横牌由竖牌 PNG 直接旋转生成，保证字重一致。

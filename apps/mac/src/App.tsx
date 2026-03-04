@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { SafeAreaView, Text, View, StyleSheet, TextInput, Pressable, ScrollView, useColorScheme } from 'react-native';
+import { Text, View, StyleSheet, TextInput, Pressable, ScrollView, useColorScheme, Image } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { createLobbyRuntime, type LobbyViewState, type HandTile, type Meld, type LobbyPlayer } from './lobby-runtime';
+import { getTileAsset } from './tile-assets';
 
 type Lang = 'en' | 'zh';
 const I18N: Record<Lang, Record<string, string>> = {
@@ -111,8 +113,9 @@ export default function App(): JSX.Element {
   const [busy, setBusy] = useState(false);
   const [exchangeSelected, setExchangeSelected] = useState<string[]>([]);
   const [lastDiscardFlash, setLastDiscardFlash] = useState(false);
-  const [actionToast, setActionToast] = useState('');
   const [scoreFeedExpanded, setScoreFeedExpanded] = useState(false);
+  const [imgProbe, setImgProbe] = useState<{ load: number; error: number }>({ load: 0, error: 0 });
+  const [imgLastError, setImgLastError] = useState('');
   const [settlementModalVisible, setSettlementModalVisible] = useState(false);
   const [lastSettlementRound, setLastSettlementRound] = useState<number | null>(null);
   const [state, setState] = useState<LobbyViewState>({
@@ -136,19 +139,21 @@ export default function App(): JSX.Element {
   const inLack = state.gamePhase === 'lack';
   const inSettlement = state.gamePhase === 'settlement';
 
-  const actionOpen = !!state.pendingReaction || canDiscard;
+  const anGang = findAnGangCandidates(state.yourHandTiles);
+  const buGang = findBuGangCandidates(state.yourHandTiles, state.yourMelds);
+  const hasSelfTurnActions = canDiscard && (state.canSelfHu || (anGang?.length ?? 0) > 0 || (buGang?.length ?? 0) > 0);
+  const actionOpen = !!state.pendingReaction || hasSelfTurnActions || inExchange || inLack || inSettlement;
+  const showActionCountdown = !!state.pendingReaction || hasSelfTurnActions;
   const [actionCountdown, setActionCountdown] = useState(0);
   useEffect(() => {
-    if (!actionOpen) { setActionCountdown(0); return; }
+    if (!showActionCountdown) { setActionCountdown(0); return; }
     setActionCountdown(15);
     const timer = setInterval(() => {
       setActionCountdown((n) => (n <= 1 ? 0 : n - 1));
     }, 1000);
     return () => clearInterval(timer);
-  }, [actionOpen, state.turnSeat, state.gamePhase, state.pendingReaction?.tileCode]);
+  }, [showActionCountdown, state.turnSeat, state.gamePhase, state.pendingReaction?.tileCode]);
 
-  const anGang = findAnGangCandidates(state.yourHandTiles);
-  const buGang = findBuGangCandidates(state.yourHandTiles, state.yourMelds);
   const leaderboard = [...state.players].sort((a, b) => b.totalScore - a.totalScore || a.seat - b.seat);
   const latestRound = (state.roundHistory || []).slice(-1)[0] || null;
   const scoreFeedLines = buildScoreFeedLines(state, latestRound);
@@ -182,16 +187,18 @@ export default function App(): JSX.Element {
     try { fn(); } finally { setTimeout(() => setBusy(false), 120); }
   };
 
-  const runAction = (label: string, fn: () => boolean) => {
+  const runAction = (_label: string, fn: () => boolean) => {
     run(() => {
-      const ok = fn();
-      if (ok) {
-        setActionToast(label);
-        setTimeout(() => setActionToast(''), 1200);
-      }
-      return ok;
+      return fn();
     });
   };
+
+  const sampleTile = getTileAsset('w5', 'upright');
+  const handAssetProbe = state.yourHandTiles.slice(0, 6).map((tile) => {
+    const pure = tile.code.includes('@') ? tile.code.split('@')[0] : tile.code;
+    return `${pure}:${getTileAsset(pure, 'upright') ? 'Y' : 'N'}`;
+  }).join(' ');
+  const firstHandAsset = state.yourHandTiles[0] ? getTileAsset(state.yourHandTiles[0].code, 'upright') : null;
 
   const genRandomName = () => {
     const p = ['雀友', '牌侠', '听牌王', '川麻客', '杠上花'];
@@ -236,10 +243,11 @@ export default function App(): JSX.Element {
   );
 
   return (
-    <SafeAreaView style={styles.page}>
-      <ScrollView contentContainerStyle={styles.wrap}>
-        <View style={styles.card}>
-          <View style={styles.contentRow}>
+    <SafeAreaProvider>
+      <SafeAreaView style={styles.page}>
+        <ScrollView contentContainerStyle={styles.wrap}>
+          <View style={styles.card}>
+            <View style={styles.contentRow}>
             <View style={styles.managePanel}>
               <Text style={styles.panelTitle}>房间管理</Text>
               <SidebarSection styles={styles}>
@@ -307,6 +315,27 @@ export default function App(): JSX.Element {
             <View style={styles.tableHeader}>
               <Text style={styles.tableTitle}>{t(lang, 'table')}</Text>
               <Text style={styles.meta}>{t(lang, 'connected')}: {state.connected ? 'Yes' : 'No'} · {t(lang, 'room')}: {state.roomId || '-'} · {t(lang, 'phase')}: {state.gamePhase || '-'}</Text>
+              <View style={styles.imageProbeRow}>
+                <Text style={styles.meta}>img probe L:{imgProbe.load} E:{imgProbe.error}</Text>
+                {sampleTile ? (
+                  <Image
+                    source={sampleTile}
+                    style={styles.imageProbeTile}
+                    resizeMode="contain"
+                    onLoad={() => setImgProbe((v) => ({ ...v, load: v.load + 1 }))}
+                    onError={(e) => {
+                      console.warn('[img-probe-error]', e?.nativeEvent);
+                      setImgLastError(`probe: ${JSON.stringify(e?.nativeEvent || {})}`);
+                      setImgProbe((v) => ({ ...v, error: v.error + 1 }));
+                    }}
+                  />
+                ) : null}
+                {firstHandAsset ? (
+                  <Image source={firstHandAsset} style={styles.imageProbeTile} resizeMode="contain" />
+                ) : null}
+              </View>
+              <Text style={styles.meta}>hand asset probe: {handAssetProbe || '-'}</Text>
+              {imgLastError ? <Text style={styles.imageProbeError}>{imgLastError}</Text> : null}
             </View>
 
             <View style={styles.tableSurface}>
@@ -330,17 +359,52 @@ export default function App(): JSX.Element {
                 <SeatPanel styles={styles} player={seatMap.right} rematchReadySeats={state.rematchReadySeats} vertical side="right" isTurn={state.turnSeat === seatMap.right?.seat} isSelf={false} />
               </View>
               <View style={styles.bottomSeatWrap}>
+                {actionOpen ? (
+                  <View style={[styles.actionBarWrap, styles.actionBarInline]}>
+                    <View style={styles.actionBarHeader}>
+                      <Text style={styles.actionTitle}>{t(lang, 'actions')}</Text>
+                      {showActionCountdown ? (
+                        <Text style={[styles.actionTimer, actionCountdown <= 3 ? styles.actionTimerDanger : (actionCountdown <= 5 ? styles.actionTimerWarn : null)]}>{t(lang, 'countdown')}: {actionCountdown}s</Text>
+                      ) : (
+                        <Text style={styles.meta}>当前阶段操作</Text>
+                      )}
+                    </View>
+                    {showActionCountdown && actionCountdown > 0 ? <View style={[styles.countdownBar, actionCountdown <= 3 ? styles.countdownBarDanger : (actionCountdown <= 5 ? styles.countdownBarWarn : null), { width: `${Math.max(8, Math.round((actionCountdown / 15) * 100))}%` }]} /> : null}
+                    {state.pendingReaction ? (
+                      <View style={styles.actionBar}>
+                        {state.pendingReaction.canHu && <Btn text={t(lang, 'reactHu')} onPress={() => runAction('胡', () => runtime.react('hu'))} />}
+                        {state.pendingReaction.canGang && <Btn text={t(lang, 'reactGang')} variant="secondary" onPress={() => runAction('杠', () => runtime.react('gang'))} />}
+                        {state.pendingReaction.canPeng && <Btn text={t(lang, 'reactPeng')} variant="secondary" onPress={() => runAction('碰', () => runtime.react('peng'))} />}
+                        <Btn text={t(lang, 'reactPass')} variant="danger" onPress={() => runAction('过', () => runtime.react('pass'))} />
+                      </View>
+                    ) : inExchange ? (
+                      <View style={styles.actionBar}>
+                        <Text style={styles.meta}>换三张 {exchangeSelected.length}/3</Text>
+                        <Btn text={t(lang, 'submitExchange')} onPress={() => runAction('提交换三张', () => runtime.submitExchange(exchangeSelected))} />
+                      </View>
+                    ) : inLack ? (
+                      <View style={styles.actionBar}>
+                        <Btn text={t(lang, 'lackWan')} variant="secondary" onPress={() => runAction('定缺万', () => runtime.setLack('wan'))} />
+                        <Btn text={t(lang, 'lackTiao')} variant="secondary" onPress={() => runAction('定缺条', () => runtime.setLack('tiao'))} />
+                        <Btn text={t(lang, 'lackTong')} variant="secondary" onPress={() => runAction('定缺筒', () => runtime.setLack('tong'))} />
+                      </View>
+                    ) : inSettlement ? (
+                      <View style={styles.actionBar}>
+                        <Btn text={t(lang, 'rematch')} onPress={() => runAction('再来一局', () => runtime.requestRematch())} />
+                      </View>
+                    ) : (
+                      <View style={styles.actionBar}>
+                        {state.canSelfHu ? <Btn text={t(lang, 'selfHu')} onPress={() => runAction('自摸胡', () => runtime.selfHu())} /> : null}
+                        {anGang.map((x) => <Btn key={`agang-${x.id}`} text={`暗杠 ${tileCodeToZh(x.code)}`} variant="secondary" onPress={() => runAction('暗杠', () => runtime.anGang(x.id))} />)}
+                        {buGang.map((x) => <Btn key={`bgang-${x.id}`} text={`补杠 ${tileCodeToZh(x.code)}`} variant="secondary" onPress={() => runAction('补杠', () => runtime.buGang(x.id))} />)}
+                      </View>
+                    )}
+                  </View>
+                ) : null}
                 <SeatPanel styles={styles} player={bottomPlayer} rematchReadySeats={state.rematchReadySeats} isTurn={state.turnSeat === bottomPlayer?.seat} isSelf />
               </View>
             </View>
 
-
-            {!state.pendingReaction && canDiscard && anGang.map((x) => <View key={x.id} style={styles.row}><Btn text={`暗杠 ${tileCodeToZh(x.code)}`} variant="secondary" onPress={() => runAction('暗杠', () => runtime.anGang(x.id))} /></View>)}
-            {!state.pendingReaction && canDiscard && buGang.map((x) => <View key={x.id} style={styles.row}><Btn text={`补杠 ${tileCodeToZh(x.code)}`} variant="secondary" onPress={() => runAction('补杠', () => runtime.buGang(x.id))} /></View>)}
-
-            {inExchange ? <View style={styles.row}><Text style={styles.meta}>换三张 {exchangeSelected.length}/3</Text><Btn text={t(lang, 'submitExchange')} onPress={() => runAction('提交换三张', () => runtime.submitExchange(exchangeSelected))} /></View> : null}
-            {inLack ? <View style={styles.row}><Btn text={t(lang, 'lackWan')} variant="secondary" onPress={() => runAction('定缺万', () => runtime.setLack('wan'))} /><Btn text={t(lang, 'lackTiao')} variant="secondary" onPress={() => runAction('定缺条', () => runtime.setLack('tiao'))} /><Btn text={t(lang, 'lackTong')} variant="secondary" onPress={() => runAction('定缺筒', () => runtime.setLack('tong'))} /></View> : null}
-            {inSettlement ? <View style={styles.row}><Btn text={t(lang, 'rematch')} onPress={() => runAction('再来一局', () => runtime.requestRematch())} /></View> : null}
 
             {settlementModalVisible ? (
               <View style={styles.settlementModalMask}>
@@ -390,38 +454,16 @@ export default function App(): JSX.Element {
             ) : null}
 
 
-            {actionToast ? <View style={styles.actionToast}><Text style={styles.actionToastText}>{actionToast}</Text></View> : null}
             <View style={styles.handArea}>
               <View style={[styles.tileRow, !(canDiscard || inExchange) && styles.tileRowDisabled]}>{state.yourHandTiles.map((tile) => <Tile key={tile.id} styles={styles} code={tile.code} selected={exchangeSelected.includes(tile.id)} active={canDiscard || inExchange} onPress={() => onTilePress(tile)} />)}</View>
             </View>
 
-            {actionOpen ? (
-              <View style={styles.actionBarWrap}>
-                <View style={styles.actionBarHeader}>
-                  <Text style={styles.actionTitle}>{t(lang, 'actions')}</Text>
-                  <Text style={[styles.actionTimer, actionCountdown <= 3 ? styles.actionTimerDanger : (actionCountdown <= 5 ? styles.actionTimerWarn : null)]}>{t(lang, 'countdown')}: {actionCountdown}s</Text>
-                </View>
-                {actionCountdown > 0 ? <View style={[styles.countdownBar, actionCountdown <= 3 ? styles.countdownBarDanger : (actionCountdown <= 5 ? styles.countdownBarWarn : null), { width: `${Math.max(8, Math.round((actionCountdown / 15) * 100))}%` }]} /> : null}
-                {state.pendingReaction ? (
-                  <View style={styles.actionBar}>
-                    {state.pendingReaction.canHu && <Btn text={t(lang, 'reactHu')} onPress={() => runAction('胡', () => runtime.react('hu'))} />}
-                    {state.pendingReaction.canGang && <Btn text={t(lang, 'reactGang')} variant="secondary" onPress={() => runAction('杠', () => runtime.react('gang'))} />}
-                    {state.pendingReaction.canPeng && <Btn text={t(lang, 'reactPeng')} variant="secondary" onPress={() => runAction('碰', () => runtime.react('peng'))} />}
-                    <Btn text={t(lang, 'reactPass')} variant="danger" onPress={() => runAction('过', () => runtime.react('pass'))} />
-                  </View>
-                ) : (
-                  <View style={styles.actionBar}>
-                    <Btn text={t(lang, 'selfHu')} disabled={!(canDiscard && state.canSelfHu)} onPress={() => runAction('自摸胡', () => runtime.selfHu())} />
-                    {!canDiscard ? <Text style={styles.meta}>当前不可操作：未到你回合</Text> : null}
-                  </View>
-                )}
-              </View>
-            ) : null}
           </View>
+            </View>
           </View>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+        </ScrollView>
+      </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
 
@@ -502,27 +544,33 @@ function DiscardRivers({ styles, discardsBySeat, mySeat, reactionTarget }: { sty
     <View style={styles.riversWrap}>
       <RiverGrid styles={styles} tiles={discardsBySeat[topSeat] || []} highlightCode={reactionTarget?.seat === topSeat ? reactionTarget.tileCode : undefined} />
       <View style={styles.riverMiddle}>
-        <RiverGrid styles={styles} tiles={discardsBySeat[leftSeat] || []} compact vertical highlightCode={reactionTarget?.seat === leftSeat ? reactionTarget.tileCode : undefined} />
-        <RiverGrid styles={styles} tiles={discardsBySeat[rightSeat] || []} compact vertical highlightCode={reactionTarget?.seat === rightSeat ? reactionTarget.tileCode : undefined} />
+        <RiverGrid styles={styles} tiles={discardsBySeat[leftSeat] || []} compact vertical verticalSide="left" highlightCode={reactionTarget?.seat === leftSeat ? reactionTarget.tileCode : undefined} />
+        <RiverGrid styles={styles} tiles={discardsBySeat[rightSeat] || []} compact vertical verticalSide="right" highlightCode={reactionTarget?.seat === rightSeat ? reactionTarget.tileCode : undefined} />
       </View>
       <RiverGrid styles={styles} tiles={discardsBySeat[mySeat] || []} highlightCode={reactionTarget?.seat === mySeat ? reactionTarget.tileCode : undefined} />
     </View>
   );
 }
 
-function RiverGrid({ styles, tiles, compact = false, vertical = false, highlightCode }: { styles: AppStyles; tiles: string[]; compact?: boolean; vertical?: boolean; highlightCode?: string }) {
-  const perLine = vertical ? 2 : (compact ? 5 : 6);
+function RiverGrid({ styles, tiles, compact = false, vertical = false, verticalSide, highlightCode }: { styles: AppStyles; tiles: string[]; compact?: boolean; vertical?: boolean; verticalSide?: 'left' | 'right'; highlightCode?: string }) {
+  const perLine = vertical ? 8 : 8;
   const lineCount = Math.max(2, Math.ceil(tiles.length / perLine));
   const padded = [...tiles];
   while (padded.length < lineCount * perLine) padded.push('');
   const highlightIndex = highlightCode ? tiles.lastIndexOf(highlightCode) : -1;
   return (
-    <View style={[styles.riverGrid, compact && styles.riverGridCompact, vertical && styles.riverGridVertical]}>
+    <View style={[
+      styles.riverGrid,
+      compact && styles.riverGridCompact,
+      vertical && styles.riverGridVertical
+    ]}
+    >
       {Array.from({ length: lineCount }).map((_, line) => (
         <View key={line} style={[styles.riverRow, vertical && styles.riverRowVertical]}>
           {padded.slice(line * perLine, (line + 1) * perLine).map((c, i) => {
             const index = line * perLine + i;
             if (!c) return <View key={`${line}-${i}-x`} style={styles.riverPlaceholder} />;
+            if (verticalSide) return <SideMiniTile key={`${line}-${i}-${c}`} styles={styles} code={c} side={verticalSide} highlighted={index === highlightIndex} />;
             return <MiniTile key={`${line}-${i}-${c}`} styles={styles} code={c} highlighted={index === highlightIndex} />;
           })}
         </View>
@@ -552,10 +600,67 @@ function groupDiscardsBySeat(discards: { seat: number; tileCode: string; claimed
 type BtnVariant = 'primary' | 'secondary' | 'danger' | 'ghost';
 function Tile({ styles, code, small = false, selected = false, active = false, highlighted = false, onPress }: { styles: AppStyles; code: string; small?: boolean; selected?: boolean; active?: boolean; highlighted?: boolean; onPress?: () => void }) {
   const pure = code.includes('@') ? code.split('@')[0] : code;
+  const asset = getTileAsset(pure, 'upright');
+  const [imgFailed, setImgFailed] = useState(false);
   const suit = pure[0]; const rank = Number(pure.slice(1)); const { label, color } = meta(suit);
-  return <Pressable onPress={onPress} disabled={!onPress} style={({ pressed }) => [styles.tile, small && styles.tileSmall, selected && styles.tileSel, highlighted && styles.tileHighlight, !active && styles.tileInactive, pressed && onPress && styles.tilePressed]}><Text style={[styles.corner, { color }]}>{label}</Text><Text style={[styles.rank, { color }]}>{rank}</Text><Text style={[styles.corner, { color, alignSelf: 'flex-end' }]}></Text></Pressable>;
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={!onPress}
+      style={({ pressed }) => [styles.tile, small && styles.tileSmall, asset && styles.tileImageHost, selected && styles.tileSel, highlighted && styles.tileHighlight, !active && styles.tileInactive, pressed && onPress && styles.tilePressed]}
+    >
+      {asset && !imgFailed ? (
+        <Image
+          source={asset}
+          style={[styles.tileImage, small && styles.tileImageSmall]}
+          resizeMode="contain"
+          onLoad={() => console.log('[tile-load]', pure)}
+          onError={(e) => {
+            console.warn('[tile-error]', pure, e?.nativeEvent);
+            setImgFailed(true);
+          }}
+        />
+      ) : (
+        <>
+          <Text style={[styles.corner, { color }]}>{label}</Text>
+          <Text style={[styles.rank, { color }]}>{rank}</Text>
+          <Text style={[styles.corner, { color, alignSelf: 'flex-end' }]}></Text>
+        </>
+      )}
+    </Pressable>
+  );
 }
 function MiniTile({ styles, code, highlighted = false }: { styles: AppStyles; code: string; highlighted?: boolean }) { return <Tile styles={styles} code={code} small active highlighted={highlighted} />; }
+function SideMiniTile({ styles, code, side, highlighted = false }: { styles: AppStyles; code: string; side: 'left' | 'right'; highlighted?: boolean }) {
+  const asset = getTileAsset(code, side === 'left' ? 'side_left' : 'side_right');
+  const [imgFailed, setImgFailed] = useState(false);
+  const pure = code.includes('@') ? code.split('@')[0] : code;
+  const suit = pure[0];
+  const rank = Number(pure.slice(1));
+  const { label, color } = meta(suit);
+  return (
+    <View style={[styles.sideTile, asset && styles.sideTileImageHost, highlighted && styles.tileHighlight]}>
+      {asset && !imgFailed ? (
+        <Image
+          source={asset}
+          style={styles.sideTileImageFull}
+          resizeMode="cover"
+          onLoad={() => console.log('[side-tile-load]', pure, side)}
+          onError={(e) => {
+            console.warn('[side-tile-error]', pure, side, e?.nativeEvent);
+            setImgFailed(true);
+          }}
+        />
+      ) : (
+        <>
+          {side === 'right' ? <Text style={[styles.sideTileMark, { color }]}>{label}</Text> : null}
+          <Text style={[styles.sideTileRank, { color }]}>{rank}</Text>
+          {side === 'left' ? <Text style={[styles.sideTileMark, { color }]}>{label}</Text> : null}
+        </>
+      )}
+    </View>
+  );
+}
 function meta(s: string) { if (s === 'w') return { label: '萬', color: '#dc2626' }; if (s === 't') return { label: '条', color: '#16a34a' }; return { label: '筒', color: '#2563eb' }; }
 function lackSuitToZh(s?: 'wan'|'tiao'|'tong'|null) {
   if (s === 'wan') return '万';
@@ -667,6 +772,9 @@ function createStyles(theme: ThemeTokens) {
     tablePanel: { flex: 1, borderWidth: 1, borderColor: theme.borderSoft, borderRadius: 14, padding: 12, backgroundColor: theme.bgPanel },
     tableHeader: { marginBottom: 10 },
     tableTitle: { color: theme.textPrimary, fontWeight: '700', fontSize: 24, lineHeight: 30 },
+    imageProbeRow: { marginTop: 4, flexDirection: 'row', alignItems: 'center', gap: 8 },
+    imageProbeTile: { width: 26, height: 40, borderWidth: 1, borderColor: theme.borderSoft, borderRadius: 4, backgroundColor: '#fff' },
+    imageProbeError: { marginTop: 4, color: '#FCA5A5', fontSize: 11 },
     tableSurface: {
       borderRadius: 12,
       paddingHorizontal: 16,
@@ -708,16 +816,17 @@ function createStyles(theme: ThemeTokens) {
     lastDiscardText: { color: '#FEF3C7', fontWeight: '700', fontSize: 12 },
 
     riversWrap: { width: '74%', minHeight: 300, alignSelf: 'center', marginTop: 14, borderWidth: 1, borderColor: theme.riverBorder, borderRadius: 12, padding: 10, backgroundColor: theme.riverBg },
-    bottomSeatWrap: { marginTop: 14, alignItems: 'center' },
+    bottomSeatWrap: { marginTop: 14, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', columnGap: 12 },
     riverGrid: { alignItems: 'center', marginVertical: 2 },
     riverGridCompact: { width: '48%' },
-    riverGridVertical: { width: '48%', alignItems: 'center' },
+    riverGridVertical: { width: '48%', flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center', columnGap: 6 },
     riverRow: { flexDirection: 'row', gap: 4, minHeight: 30, justifyContent: 'center' },
     riverRowVertical: { flexDirection: 'column', minHeight: 0, gap: 4 },
     riverMiddle: { flexDirection: 'row', justifyContent: 'space-between', marginVertical: 6 },
     riverPlaceholder: { width: 24, height: 34, borderRadius: 5, borderWidth: 1, borderColor: theme.riverBorder, backgroundColor: theme.riverBg },
 
     actionBarWrap: { marginTop: 12, backgroundColor: theme.bgCard, borderRadius: 12, padding: 10, borderWidth: 1, borderColor: theme.borderSoft },
+    actionBarInline: { marginTop: 0, width: 360, maxWidth: '44%' },
     actionBarHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
     actionTitle: { color: theme.textPrimary, fontWeight: '700' },
     actionTimer: { color: theme.success, fontWeight: '700' },
@@ -749,8 +858,16 @@ function createStyles(theme: ThemeTokens) {
 
     tileRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6, justifyContent: 'center' },
     tileRowDisabled: { opacity: 0.55 },
-    tile: { width: 38, height: 58, borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, backgroundColor: '#FFFFFF', padding: 4, justifyContent: 'space-between' },
+    tile: { width: 38, height: 58, borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, backgroundColor: '#FFFFFF', padding: 4, justifyContent: 'space-between', overflow: 'hidden' },
     tileSmall: { width: 24, height: 34, borderRadius: 5, padding: 2 },
+    tileImageHost: { padding: 0, justifyContent: 'center', alignItems: 'center' },
+    tileImage: { width: 36, height: 56, borderRadius: 6 },
+    tileImageSmall: { width: 22, height: 32, borderRadius: 4 },
+    sideTile: { width: 34, height: 24, borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 5, backgroundColor: '#FFFFFF', paddingHorizontal: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', overflow: 'hidden' },
+    sideTileImageHost: { paddingHorizontal: 0, justifyContent: 'center', alignItems: 'center' },
+    sideTileImageFull: { position: 'absolute', left: 1, top: 1, width: 32, height: 22, borderRadius: 4 },
+    sideTileMark: { fontSize: 9, fontWeight: '700' },
+    sideTileRank: { fontSize: 16, fontWeight: '800', lineHeight: 18 },
     tileSel: { borderColor: theme.warning, transform: [{ translateY: -2 }] },
     tileHighlight: { borderColor: '#FDE047', borderWidth: 3, shadowColor: '#FDE047', shadowOpacity: 0.9, shadowRadius: 9, backgroundColor: '#FFFDEB' },
     tilePressed: { transform: [{ translateY: 1 }] },

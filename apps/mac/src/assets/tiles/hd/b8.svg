@@ -1,0 +1,17 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='480' height='720' viewBox='0 0 480 720'>
+  <defs>
+    <linearGradient id='bg' x1='0' y1='0' x2='0' y2='1'>
+      <stop offset='0%' stop-color='#ffffff'/>
+      <stop offset='100%' stop-color='#f8fafc'/>
+    </linearGradient>
+  </defs>
+  <rect x='8' y='8' rx='40' ry='40' width='464' height='704' fill='url(#bg)' stroke='#cbd5e1' stroke-width='10'/>
+  <rect x='22' y='22' rx='30' ry='30' width='436' height='676' fill='none' stroke='#e2e8f0' stroke-width='3'/>
+
+  <text x='54' y='98' font-family='PingFang SC, Helvetica, Arial, sans-serif' font-size='66' font-weight='700' fill='#2563eb'>筒</text>
+  <text x='426' y='98' text-anchor='end' font-family='PingFang SC, Helvetica, Arial, sans-serif' font-size='52' font-weight='700' fill='#2563eb'>8</text>
+
+  <text x='240' y='382' text-anchor='middle' dominant-baseline='middle'
+        font-family='SF Pro Display, Helvetica, Arial, sans-serif'
+        font-size='300' font-weight='800' fill='#2563eb'>8</text>
+</svg>

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { SafeAreaView, Text, View, StyleSheet, TextInput, Pressable, ScrollView } from 'react-native';
+import { SafeAreaView, Text, View, StyleSheet, TextInput, Pressable, ScrollView, useColorScheme } from 'react-native';
 import { createLobbyRuntime, type LobbyViewState, type HandTile, type Meld, type LobbyPlayer } from './lobby-runtime';
 
 type Lang = 'en' | 'zh';
@@ -18,8 +18,93 @@ const I18N: Record<Lang, Record<string, string>> = {
   }
 };
 const t = (l: Lang, k: string) => I18N[l][k] || k;
+type AppStyles = ReturnType<typeof createStyles>;
+
+type ThemeTokens = {
+  bgApp: string;
+  bgPanel: string;
+  bgCard: string;
+  bgTable: string;
+  textPrimary: string;
+  textSecondary: string;
+  textTertiary: string;
+  brand: string;
+  success: string;
+  warning: string;
+  danger: string;
+  borderSoft: string;
+  inputBg: string;
+  riverBg: string;
+  riverBorder: string;
+  modalMask: string;
+  cardShadow: string;
+  btnSecondaryBg: string;
+  btnSecondaryText: string;
+  btnDangerBg: string;
+  btnDangerText: string;
+  btnGhostText: string;
+  toastBg: string;
+  toastText: string;
+};
+
+const DARK_THEME: ThemeTokens = {
+  bgApp: '#0B1220',
+  bgPanel: '#0F1B33',
+  bgCard: '#13223D',
+  bgTable: '#0D5A46',
+  textPrimary: '#F3F6FF',
+  textSecondary: '#A9B4C7',
+  textTertiary: '#94A3B8',
+  brand: '#3B82F6',
+  success: '#22C55E',
+  warning: '#F59E0B',
+  danger: '#EF4444',
+  borderSoft: 'rgba(255,255,255,0.12)',
+  inputBg: '#0A1A2F',
+  riverBg: 'rgba(0,0,0,0.08)',
+  riverBorder: 'rgba(255,255,255,0.08)',
+  modalMask: 'rgba(2,6,23,0.72)',
+  cardShadow: '#020617',
+  btnSecondaryBg: '#10233D',
+  btnSecondaryText: '#F3F6FF',
+  btnDangerBg: '#4A1720',
+  btnDangerText: '#FECACA',
+  btnGhostText: '#93C5FD',
+  toastBg: '#10233D',
+  toastText: '#DBEAFE'
+};
+
+const LIGHT_THEME: ThemeTokens = {
+  bgApp: '#EEF3FA',
+  bgPanel: '#F7FAFF',
+  bgCard: '#FFFFFF',
+  bgTable: '#2B8E72',
+  textPrimary: '#0F172A',
+  textSecondary: '#334155',
+  textTertiary: '#64748B',
+  brand: '#2563EB',
+  success: '#16A34A',
+  warning: '#D97706',
+  danger: '#DC2626',
+  borderSoft: 'rgba(15,23,42,0.14)',
+  inputBg: '#FFFFFF',
+  riverBg: 'rgba(255,255,255,0.55)',
+  riverBorder: 'rgba(15,23,42,0.10)',
+  modalMask: 'rgba(15,23,42,0.35)',
+  cardShadow: 'rgba(15,23,42,0.25)',
+  btnSecondaryBg: '#E2E8F0',
+  btnSecondaryText: '#1E293B',
+  btnDangerBg: '#FEE2E2',
+  btnDangerText: '#991B1B',
+  btnGhostText: '#1D4ED8',
+  toastBg: '#DBEAFE',
+  toastText: '#1E3A8A'
+};
 
 export default function App(): JSX.Element {
+  const colorScheme = useColorScheme();
+  const theme = colorScheme === 'light' ? LIGHT_THEME : DARK_THEME;
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const [lang, setLang] = useState<Lang>('zh');
   const [mode, setMode] = useState<'preview' | 'live'>('live');
   const [wsUrl, setWsUrl] = useState('ws://127.0.0.1:8787');
@@ -27,6 +112,7 @@ export default function App(): JSX.Element {
   const [exchangeSelected, setExchangeSelected] = useState<string[]>([]);
   const [lastDiscardFlash, setLastDiscardFlash] = useState(false);
   const [actionToast, setActionToast] = useState('');
+  const [scoreFeedExpanded, setScoreFeedExpanded] = useState(false);
   const [settlementModalVisible, setSettlementModalVisible] = useState(false);
   const [lastSettlementRound, setLastSettlementRound] = useState<number | null>(null);
   const [state, setState] = useState<LobbyViewState>({
@@ -65,6 +151,8 @@ export default function App(): JSX.Element {
   const buGang = findBuGangCandidates(state.yourHandTiles, state.yourMelds);
   const leaderboard = [...state.players].sort((a, b) => b.totalScore - a.totalScore || a.seat - b.seat);
   const latestRound = (state.roundHistory || []).slice(-1)[0] || null;
+  const scoreFeedLines = buildScoreFeedLines(state, latestRound);
+  const displayedScoreFeedLines = scoreFeedExpanded ? scoreFeedLines : scoreFeedLines.slice(0, 6);
   const roundDeltaMap = new Map<number, number>((latestRound?.scoreChanges || []).map((x: any) => [x.seat, x.delta]));
 
   const mySeat = state.yourSeat ?? 0;
@@ -121,6 +209,32 @@ export default function App(): JSX.Element {
     if (canDiscard) run(() => runtime.discard(tile.id));
   };
 
+  const Btn = ({ text, onPress, disabled = false, variant = 'primary' }: { text: string; onPress: () => void; disabled?: boolean; variant?: BtnVariant }) => (
+    <Pressable
+      style={({ pressed }) => ([
+        styles.btn,
+        variant === 'secondary' && styles.btnSecondary,
+        variant === 'danger' && styles.btnDanger,
+        variant === 'ghost' && styles.btnGhost,
+        pressed && !disabled && styles.btnPressed,
+        disabled && styles.btnDisabled
+      ])}
+      disabled={disabled}
+      onPress={onPress}
+    >
+      <Text style={[
+        styles.btnText,
+        variant === 'secondary' && styles.btnTextSecondary,
+        variant === 'danger' && styles.btnTextDanger,
+        variant === 'ghost' && styles.btnTextGhost,
+        disabled && styles.btnTextDisabled
+      ]}
+      >
+        {text}
+      </Text>
+    </Pressable>
+  );
+
   return (
     <SafeAreaView style={styles.page}>
       <ScrollView contentContainerStyle={styles.wrap}>
@@ -128,22 +242,37 @@ export default function App(): JSX.Element {
           <View style={styles.contentRow}>
             <View style={styles.managePanel}>
               <Text style={styles.panelTitle}>房间管理</Text>
-              <View style={styles.row}><Btn text="中文" onPress={() => setLang('zh')} /><Btn text="EN" onPress={() => setLang('en')} /><Btn text="Preview" onPress={() => setMode('preview')} /><Btn text="Live" onPress={() => setMode('live')} /></View>
-          <TextInput style={styles.input} value={wsUrl} onChangeText={setWsUrl} />
-          <View style={styles.row}>
-            <TextInput style={[styles.input, styles.nameInput]} value={state.name} onChangeText={(name) => setState((s) => ({ ...s, name }))} placeholder="Name" />
-            <Btn text={t(lang, 'randomName')} onPress={() => setState((s) => ({ ...s, name: genRandomName() }))} />
-            <Btn text={t(lang, 'hello')} onPress={() => run(() => runtime.hello(state.name))} />
-          </View>
-          <TextInput style={styles.input} value={state.roomId} onChangeText={(roomId) => setState((s) => ({ ...s, roomId: roomId.toUpperCase() }))} placeholder="Room" />
-          <View style={styles.row}><Btn text={t(lang, 'create')} onPress={() => runAction('创建房间', () => runtime.createRoom())} /><Btn text={t(lang, 'join')} onPress={() => runAction('加入房间', () => runtime.joinRoom(state.roomId))} /><Btn text={t(lang, 'addBot')} onPress={() => runAction('添加机器人', () => runtime.addBot())} /><Btn text={t(lang, 'ready')} onPress={() => runAction('准备', () => runtime.setReady())} /></View>
+              <SidebarSection styles={styles}>
+                <View style={styles.row}>
+                  <Btn text="中文" variant={lang === 'zh' ? 'primary' : 'secondary'} onPress={() => setLang('zh')} />
+                  <Btn text="EN" variant={lang === 'en' ? 'primary' : 'secondary'} onPress={() => setLang('en')} />
+                  <Btn text="Preview" variant={mode === 'preview' ? 'primary' : 'secondary'} onPress={() => setMode('preview')} />
+                  <Btn text="Live" variant={mode === 'live' ? 'primary' : 'secondary'} onPress={() => setMode('live')} />
+                </View>
+                <InputField styles={styles} theme={theme} value={wsUrl} onChangeText={setWsUrl} placeholder="ws://127.0.0.1:8787" />
+                <View style={styles.row}>
+                  <InputField styles={styles} theme={theme} compact value={state.name} onChangeText={(name) => setState((s) => ({ ...s, name }))} placeholder="Name" />
+                  <Btn text={t(lang, 'randomName')} variant="secondary" onPress={() => setState((s) => ({ ...s, name: genRandomName() }))} />
+                  <Btn text={t(lang, 'hello')} onPress={() => run(() => runtime.hello(state.name))} />
+                </View>
+              </SidebarSection>
 
-          <View style={styles.scoreFeedPanel}>
-            <Text style={styles.scoreFeedTitle}>得分信息流</Text>
-            {buildScoreFeedLines(state, latestRound).length === 0 ? (
-              <Text style={styles.meta}>暂无</Text>
-            ) : (
-              buildScoreFeedLines(state, latestRound).slice(0, 18).map((line, idx) => {
+              <SidebarSection styles={styles}>
+                <InputField styles={styles} theme={theme} value={state.roomId} onChangeText={(roomId) => setState((s) => ({ ...s, roomId: roomId.toUpperCase() }))} placeholder="Room" />
+                <View style={styles.row}>
+                  <Btn text={t(lang, 'create')} onPress={() => runAction('创建房间', () => runtime.createRoom())} />
+                  <Btn text={t(lang, 'join')} variant="secondary" onPress={() => runAction('加入房间', () => runtime.joinRoom(state.roomId))} />
+                  <Btn text={t(lang, 'addBot')} variant="secondary" onPress={() => runAction('添加机器人', () => runtime.addBot())} />
+                  <Btn text={t(lang, 'ready')} onPress={() => runAction('准备', () => runtime.setReady())} />
+                </View>
+              </SidebarSection>
+
+              <View style={styles.scoreFeedPanel}>
+                <Text style={styles.scoreFeedTitle}>得分信息流</Text>
+                {scoreFeedLines.length === 0 ? (
+                  <Text style={styles.meta}>暂无</Text>
+                ) : (
+                  displayedScoreFeedLines.map((line, idx) => {
                 const isGain = /\+\d+/.test(line);
                 const isLose = /(^|\s)-\d+/.test(line);
                 const hasFan = /（.*）/.test(line) || /\(.*\)/.test(line) || /番/.test(line);
@@ -160,9 +289,18 @@ export default function App(): JSX.Element {
                     • {line}
                   </Text>
                 );
-              })
-            )}
-          </View>
+                  })
+                )}
+                {scoreFeedLines.length > 6 ? (
+                  <View style={styles.row}>
+                    <Btn
+                      text={scoreFeedExpanded ? '收起' : '展开更多'}
+                      variant="ghost"
+                      onPress={() => setScoreFeedExpanded((v) => !v)}
+                    />
+                  </View>
+                ) : null}
+              </View>
             </View>
 
             <View style={styles.tablePanel}>
@@ -173,6 +311,7 @@ export default function App(): JSX.Element {
 
             <View style={styles.tableSurface}>
               <CenterHUD
+                styles={styles}
                 turnSeat={state.turnSeat}
                 roomPhase={state.roomPhase}
                 roundNo={state.roundNo}
@@ -184,23 +323,23 @@ export default function App(): JSX.Element {
                 lastDiscardPlayerName={lastDiscardPlayerName}
                 flash={lastDiscardFlash}
               />
-              <SeatPanel player={seatMap.top} rematchReadySeats={state.rematchReadySeats} isTurn={state.turnSeat === seatMap.top?.seat} isSelf={false} />
+              <SeatPanel styles={styles} player={seatMap.top} rematchReadySeats={state.rematchReadySeats} isTurn={state.turnSeat === seatMap.top?.seat} isSelf={false} />
               <View style={styles.riversRow}>
-                <SeatPanel player={seatMap.left} rematchReadySeats={state.rematchReadySeats} vertical side="left" isTurn={state.turnSeat === seatMap.left?.seat} isSelf={false} />
-                <DiscardRivers discardsBySeat={discardsBySeat} mySeat={mySeat} reactionTarget={reactionTarget} />
-                <SeatPanel player={seatMap.right} rematchReadySeats={state.rematchReadySeats} vertical side="right" isTurn={state.turnSeat === seatMap.right?.seat} isSelf={false} />
+                <SeatPanel styles={styles} player={seatMap.left} rematchReadySeats={state.rematchReadySeats} vertical side="left" isTurn={state.turnSeat === seatMap.left?.seat} isSelf={false} />
+                <DiscardRivers styles={styles} discardsBySeat={discardsBySeat} mySeat={mySeat} reactionTarget={reactionTarget} />
+                <SeatPanel styles={styles} player={seatMap.right} rematchReadySeats={state.rematchReadySeats} vertical side="right" isTurn={state.turnSeat === seatMap.right?.seat} isSelf={false} />
               </View>
               <View style={styles.bottomSeatWrap}>
-                <SeatPanel player={bottomPlayer} rematchReadySeats={state.rematchReadySeats} isTurn={state.turnSeat === bottomPlayer?.seat} isSelf />
+                <SeatPanel styles={styles} player={bottomPlayer} rematchReadySeats={state.rematchReadySeats} isTurn={state.turnSeat === bottomPlayer?.seat} isSelf />
               </View>
             </View>
 
 
-            {!state.pendingReaction && canDiscard && anGang.map((x) => <View key={x.id} style={styles.row}><Btn text={`暗杠 ${tileCodeToZh(x.code)}`} onPress={() => runAction('暗杠', () => runtime.anGang(x.id))} /></View>)}
-            {!state.pendingReaction && canDiscard && buGang.map((x) => <View key={x.id} style={styles.row}><Btn text={`补杠 ${tileCodeToZh(x.code)}`} onPress={() => runAction('补杠', () => runtime.buGang(x.id))} /></View>)}
+            {!state.pendingReaction && canDiscard && anGang.map((x) => <View key={x.id} style={styles.row}><Btn text={`暗杠 ${tileCodeToZh(x.code)}`} variant="secondary" onPress={() => runAction('暗杠', () => runtime.anGang(x.id))} /></View>)}
+            {!state.pendingReaction && canDiscard && buGang.map((x) => <View key={x.id} style={styles.row}><Btn text={`补杠 ${tileCodeToZh(x.code)}`} variant="secondary" onPress={() => runAction('补杠', () => runtime.buGang(x.id))} /></View>)}
 
             {inExchange ? <View style={styles.row}><Text style={styles.meta}>换三张 {exchangeSelected.length}/3</Text><Btn text={t(lang, 'submitExchange')} onPress={() => runAction('提交换三张', () => runtime.submitExchange(exchangeSelected))} /></View> : null}
-            {inLack ? <View style={styles.row}><Btn text={t(lang, 'lackWan')} onPress={() => runAction('定缺万', () => runtime.setLack('wan'))} /><Btn text={t(lang, 'lackTiao')} onPress={() => runAction('定缺条', () => runtime.setLack('tiao'))} /><Btn text={t(lang, 'lackTong')} onPress={() => runAction('定缺筒', () => runtime.setLack('tong'))} /></View> : null}
+            {inLack ? <View style={styles.row}><Btn text={t(lang, 'lackWan')} variant="secondary" onPress={() => runAction('定缺万', () => runtime.setLack('wan'))} /><Btn text={t(lang, 'lackTiao')} variant="secondary" onPress={() => runAction('定缺条', () => runtime.setLack('tiao'))} /><Btn text={t(lang, 'lackTong')} variant="secondary" onPress={() => runAction('定缺筒', () => runtime.setLack('tong'))} /></View> : null}
             {inSettlement ? <View style={styles.row}><Btn text={t(lang, 'rematch')} onPress={() => runAction('再来一局', () => runtime.requestRematch())} /></View> : null}
 
             {settlementModalVisible ? (
@@ -231,9 +370,9 @@ export default function App(): JSX.Element {
                           <View key={`rh-${rh.seat}`} style={styles.revealRow}>
                             <Text style={styles.revealName}>{name}:</Text>
                             <View style={styles.revealTiles}>
-                              {handTiles.length ? handTiles.map((c: string, i: number) => <MiniTile key={`${rh.seat}-h-${i}-${c}`} code={c} />) : <Text style={styles.revealItem}>-</Text>}
+                              {handTiles.length ? handTiles.map((c: string, i: number) => <MiniTile key={`${rh.seat}-h-${i}-${c}`} styles={styles} code={c} />) : <Text style={styles.revealItem}>-</Text>}
                               {meldTiles.length > 0 ? <View style={styles.revealGap} /> : null}
-                              {meldTiles.map((c: string, i: number) => <MiniTile key={`${rh.seat}-m-${i}-${c}`} code={c} />)}
+                              {meldTiles.map((c: string, i: number) => <MiniTile key={`${rh.seat}-m-${i}-${c}`} styles={styles} code={c} />)}
                             </View>
                           </View>
                         );
@@ -253,7 +392,7 @@ export default function App(): JSX.Element {
 
             {actionToast ? <View style={styles.actionToast}><Text style={styles.actionToastText}>{actionToast}</Text></View> : null}
             <View style={styles.handArea}>
-              <View style={[styles.tileRow, !(canDiscard || inExchange) && styles.tileRowDisabled]}>{state.yourHandTiles.map((tile) => <Tile key={tile.id} code={tile.code} selected={exchangeSelected.includes(tile.id)} active={canDiscard || inExchange} onPress={() => onTilePress(tile)} />)}</View>
+              <View style={[styles.tileRow, !(canDiscard || inExchange) && styles.tileRowDisabled]}>{state.yourHandTiles.map((tile) => <Tile key={tile.id} styles={styles} code={tile.code} selected={exchangeSelected.includes(tile.id)} active={canDiscard || inExchange} onPress={() => onTilePress(tile)} />)}</View>
             </View>
 
             {actionOpen ? (
@@ -266,9 +405,9 @@ export default function App(): JSX.Element {
                 {state.pendingReaction ? (
                   <View style={styles.actionBar}>
                     {state.pendingReaction.canHu && <Btn text={t(lang, 'reactHu')} onPress={() => runAction('胡', () => runtime.react('hu'))} />}
-                    {state.pendingReaction.canGang && <Btn text={t(lang, 'reactGang')} onPress={() => runAction('杠', () => runtime.react('gang'))} />}
-                    {state.pendingReaction.canPeng && <Btn text={t(lang, 'reactPeng')} onPress={() => runAction('碰', () => runtime.react('peng'))} />}
-                    <Btn text={t(lang, 'reactPass')} onPress={() => runAction('过', () => runtime.react('pass'))} />
+                    {state.pendingReaction.canGang && <Btn text={t(lang, 'reactGang')} variant="secondary" onPress={() => runAction('杠', () => runtime.react('gang'))} />}
+                    {state.pendingReaction.canPeng && <Btn text={t(lang, 'reactPeng')} variant="secondary" onPress={() => runAction('碰', () => runtime.react('peng'))} />}
+                    <Btn text={t(lang, 'reactPass')} variant="danger" onPress={() => runAction('过', () => runtime.react('pass'))} />
                   </View>
                 ) : (
                   <View style={styles.actionBar}>
@@ -286,7 +425,23 @@ export default function App(): JSX.Element {
   );
 }
 
-function SeatPanel({ player, rematchReadySeats, vertical = false, side, isTurn = false, isSelf = false }: { player?: LobbyPlayer; rematchReadySeats: number[]; vertical?: boolean; side?: 'left' | 'right'; isTurn?: boolean; isSelf?: boolean }) {
+function SidebarSection({ styles, children }: { styles: AppStyles; children: React.ReactNode }) {
+  return <View style={styles.manageSection}>{children}</View>;
+}
+
+function InputField({ styles, theme, value, onChangeText, placeholder, compact = false }: { styles: AppStyles; theme: ThemeTokens; value: string; onChangeText: (next: string) => void; placeholder: string; compact?: boolean }) {
+  return (
+    <TextInput
+      style={[styles.input, compact && styles.nameInput]}
+      value={value}
+      onChangeText={onChangeText}
+      placeholder={placeholder}
+      placeholderTextColor={theme.textTertiary}
+    />
+  );
+}
+
+function SeatPanel({ styles, player, rematchReadySeats, vertical = false, side, isTurn = false, isSelf = false }: { styles: AppStyles; player?: LobbyPlayer; rematchReadySeats: number[]; vertical?: boolean; side?: 'left' | 'right'; isTurn?: boolean; isSelf?: boolean }) {
   if (!player) return <View style={[styles.seatPanel, vertical && styles.seatPanelVertical, side === 'left' && styles.seatPanelLeft, side === 'right' && styles.seatPanelRight]}><Text style={styles.meta}>-</Text></View>;
   return (
     <View style={[styles.seatPanel, vertical && styles.seatPanelVertical, side === 'left' && styles.seatPanelLeft, side === 'right' && styles.seatPanelRight, isTurn && styles.seatPanelTurn]}>
@@ -297,13 +452,13 @@ function SeatPanel({ player, rematchReadySeats, vertical = false, side, isTurn =
         {(player.melds || [])
           .filter((m) => isMeldVisible(m, isSelf))
           .slice(0, 4)
-          .map((m, i) => <MeldGroupView key={`${player.seat}-${i}`} meld={m} />)}
+          .map((m, i) => <MeldGroupView key={`${player.seat}-${i}`} styles={styles} meld={m} />)}
       </View>
     </View>
   );
 }
 
-function MeldGroupView({ meld }: { meld: Meld }) {
+function MeldGroupView({ styles, meld }: { styles: AppStyles; meld: Meld }) {
   const raw: any = meld as any;
   const rawTiles = Array.isArray(raw.tiles) ? raw.tiles : null;
   const tiles = rawTiles && rawTiles.length > 0
@@ -313,13 +468,13 @@ function MeldGroupView({ meld }: { meld: Meld }) {
 
   return (
     <View style={styles.meldGroup}>
-      <View style={styles.meldTilesRow}>{tiles.map((c, i) => <MiniTile key={`${c}-${i}`} code={c} />)}</View>
+      <View style={styles.meldTilesRow}>{tiles.map((c, i) => <MiniTile key={`${c}-${i}`} styles={styles} code={c} />)}</View>
       <Text style={styles.meldBadge}>{badge}</Text>
     </View>
   );
 }
 
-function CenterHUD({ turnSeat, roomPhase, roundNo, maxRounds, statusKey, statusDetail, remainingTiles, lastDiscard, lastDiscardPlayerName, flash }: { turnSeat?: number; roomPhase?: string; roundNo?: number; maxRounds?: number; statusKey?: string; statusDetail?: string | number; remainingTiles?: number; lastDiscard?: { seat: number; tileCode: string } | null; lastDiscardPlayerName?: string; flash?: boolean }) {
+function CenterHUD({ styles, turnSeat, roomPhase, roundNo, maxRounds, statusKey, statusDetail, remainingTiles, lastDiscard, lastDiscardPlayerName, flash }: { styles: AppStyles; turnSeat?: number; roomPhase?: string; roundNo?: number; maxRounds?: number; statusKey?: string; statusDetail?: string | number; remainingTiles?: number; lastDiscard?: { seat: number; tileCode: string } | null; lastDiscardPlayerName?: string; flash?: boolean }) {
   return (
     <View style={styles.centerHud}>
       <Text style={styles.centerTitle}>局况</Text>
@@ -333,23 +488,23 @@ function CenterHUD({ turnSeat, roomPhase, roundNo, maxRounds, statusKey, statusD
   );
 }
 
-function DiscardRivers({ discardsBySeat, mySeat, reactionTarget }: { discardsBySeat: Record<number, string[]>; mySeat: number; reactionTarget?: { seat: number; tileCode: string } | null }) {
+function DiscardRivers({ styles, discardsBySeat, mySeat, reactionTarget }: { styles: AppStyles; discardsBySeat: Record<number, string[]>; mySeat: number; reactionTarget?: { seat: number; tileCode: string } | null }) {
   const topSeat = (mySeat + 2) % 4;
   const leftSeat = (mySeat + 1) % 4;
   const rightSeat = (mySeat + 3) % 4;
   return (
     <View style={styles.riversWrap}>
-      <RiverGrid tiles={discardsBySeat[topSeat] || []} highlightCode={reactionTarget?.seat === topSeat ? reactionTarget.tileCode : undefined} />
+      <RiverGrid styles={styles} tiles={discardsBySeat[topSeat] || []} highlightCode={reactionTarget?.seat === topSeat ? reactionTarget.tileCode : undefined} />
       <View style={styles.riverMiddle}>
-        <RiverGrid tiles={discardsBySeat[leftSeat] || []} compact highlightCode={reactionTarget?.seat === leftSeat ? reactionTarget.tileCode : undefined} />
-        <RiverGrid tiles={discardsBySeat[rightSeat] || []} compact highlightCode={reactionTarget?.seat === rightSeat ? reactionTarget.tileCode : undefined} />
+        <RiverGrid styles={styles} tiles={discardsBySeat[leftSeat] || []} compact highlightCode={reactionTarget?.seat === leftSeat ? reactionTarget.tileCode : undefined} />
+        <RiverGrid styles={styles} tiles={discardsBySeat[rightSeat] || []} compact highlightCode={reactionTarget?.seat === rightSeat ? reactionTarget.tileCode : undefined} />
       </View>
-      <RiverGrid tiles={discardsBySeat[mySeat] || []} highlightCode={reactionTarget?.seat === mySeat ? reactionTarget.tileCode : undefined} />
+      <RiverGrid styles={styles} tiles={discardsBySeat[mySeat] || []} highlightCode={reactionTarget?.seat === mySeat ? reactionTarget.tileCode : undefined} />
     </View>
   );
 }
 
-function RiverGrid({ tiles, compact = false, highlightCode }: { tiles: string[]; compact?: boolean; highlightCode?: string }) {
+function RiverGrid({ styles, tiles, compact = false, highlightCode }: { styles: AppStyles; tiles: string[]; compact?: boolean; highlightCode?: string }) {
   const perRow = compact ? 5 : 6;
   const rows = Math.max(2, Math.ceil(tiles.length / perRow));
   const padded = [...tiles];
@@ -362,7 +517,7 @@ function RiverGrid({ tiles, compact = false, highlightCode }: { tiles: string[];
           {padded.slice(r * perRow, (r + 1) * perRow).map((c, i) => {
             const index = r * perRow + i;
             if (!c) return <View key={`${r}-${i}-x`} style={styles.riverPlaceholder} />;
-            return <MiniTile key={`${r}-${i}-${c}`} code={c} highlighted={index === highlightIndex} />;
+            return <MiniTile key={`${r}-${i}-${c}`} styles={styles} code={c} highlighted={index === highlightIndex} />;
           })}
         </View>
       ))}
@@ -395,13 +550,13 @@ function suitPrefix(suit: string) { if (suit === 'wan') return 'w'; if (suit ===
 function findPlayerBySeat(players: LobbyPlayer[], seat: number) { return players.find((p) => p.seat === seat); }
 function groupDiscardsBySeat(discards: { seat: number; tileCode: string; claimed?: boolean }[]) { const map: Record<number, string[]> = {}; for (const d of discards) { if (d.claimed) continue; if (!map[d.seat]) map[d.seat] = []; map[d.seat].push(d.tileCode); } return map; }
 
-function Btn({ text, onPress, disabled = false }: { text: string; onPress: () => void; disabled?: boolean }) { return <Pressable style={[styles.btn, disabled && styles.btnDisabled]} disabled={disabled} onPress={onPress}><Text style={[styles.btnText, disabled && styles.btnTextDisabled]}>{text}</Text></Pressable>; }
-function Tile({ code, small = false, selected = false, active = false, highlighted = false, onPress }: { code: string; small?: boolean; selected?: boolean; active?: boolean; highlighted?: boolean; onPress?: () => void }) {
+type BtnVariant = 'primary' | 'secondary' | 'danger' | 'ghost';
+function Tile({ styles, code, small = false, selected = false, active = false, highlighted = false, onPress }: { styles: AppStyles; code: string; small?: boolean; selected?: boolean; active?: boolean; highlighted?: boolean; onPress?: () => void }) {
   const pure = code.includes('@') ? code.split('@')[0] : code;
   const suit = pure[0]; const rank = Number(pure.slice(1)); const { label, color } = meta(suit);
-  return <Pressable onPress={onPress} disabled={!onPress} style={[styles.tile, small && styles.tileSmall, selected && styles.tileSel, highlighted && styles.tileHighlight, !active && styles.tileInactive]}><Text style={[styles.corner, { color }]}>{label}</Text><Text style={[styles.rank, { color }]}>{rank}</Text><Text style={[styles.corner, { color, alignSelf: 'flex-end' }]}></Text></Pressable>;
+  return <Pressable onPress={onPress} disabled={!onPress} style={({ pressed }) => [styles.tile, small && styles.tileSmall, selected && styles.tileSel, highlighted && styles.tileHighlight, !active && styles.tileInactive, pressed && onPress && styles.tilePressed]}><Text style={[styles.corner, { color }]}>{label}</Text><Text style={[styles.rank, { color }]}>{rank}</Text><Text style={[styles.corner, { color, alignSelf: 'flex-end' }]}></Text></Pressable>;
 }
-function MiniTile({ code, highlighted = false }: { code: string; highlighted?: boolean }) { return <Tile code={code} small active highlighted={highlighted} />; }
+function MiniTile({ styles, code, highlighted = false }: { styles: AppStyles; code: string; highlighted?: boolean }) { return <Tile styles={styles} code={code} small active highlighted={highlighted} />; }
 function meta(s: string) { if (s === 'w') return { label: '萬', color: '#dc2626' }; if (s === 't') return { label: '条', color: '#16a34a' }; return { label: '筒', color: '#2563eb' }; }
 function lackSuitToZh(s?: 'wan'|'tiao'|'tong'|null) {
   if (s === 'wan') return '万';
@@ -468,96 +623,127 @@ function buildScoreFeedLines(state: LobbyViewState, latestRound: any) {
   return lines;
 }
 
-const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: '#0f172a' },
-  wrap: { padding: 16, alignItems: 'flex-start' },
-  card: { width: '100%', backgroundColor: '#111827', borderRadius: 14, padding: 14 },
-  contentRow: { flexDirection: 'row', alignItems: 'flex-start', columnGap: 12 },
-  managePanel: { width: 250, borderWidth: 1, borderColor: '#334155', borderRadius: 12, padding: 10, backgroundColor: '#0b1220' },
-  panelTitle: { color: '#f8fafc', fontWeight: '700', marginBottom: 6 },
-  scoreFeedPanel: { marginTop: 10, borderWidth: 1, borderColor: '#334155', borderRadius: 8, padding: 8, backgroundColor: '#111827', maxHeight: 320 },
-  scoreFeedTitle: { color: '#f8fafc', fontWeight: '700', marginBottom: 4 },
-  scoreFeedItem: { color: '#cbd5e1', fontSize: 12, marginTop: 3 },
-  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-  input: { borderWidth: 1, borderColor: '#334155', borderRadius: 8, color: '#e2e8f0', padding: 10, marginTop: 8 },
-  nameInput: { minWidth: 180 },
-  btn: { backgroundColor: '#1d4ed8', paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8 },
-  btnText: { color: '#fff', fontWeight: '600' },
-  btnDisabled: { backgroundColor: '#334155' },
-  btnTextDisabled: { color: '#94a3b8' },
-  meta: { color: '#cbd5e1', marginTop: 4, fontSize: 12 },
+function createStyles(theme: ThemeTokens) {
+  return StyleSheet.create({
+    page: { flex: 1, backgroundColor: theme.bgApp },
+    wrap: { padding: 16, alignItems: 'flex-start' },
+    card: {
+      width: '100%',
+      backgroundColor: theme.bgApp,
+      borderRadius: 16,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: theme.borderSoft,
+      shadowColor: theme.cardShadow,
+      shadowOpacity: 0.12,
+      shadowRadius: 14
+    },
+    contentRow: { flexDirection: 'row', alignItems: 'flex-start', columnGap: 14 },
+    managePanel: { width: 280, borderWidth: 1, borderColor: theme.borderSoft, borderRadius: 14, padding: 12, backgroundColor: theme.bgPanel },
+    manageSection: { marginTop: 8, borderWidth: 1, borderColor: theme.borderSoft, borderRadius: 12, padding: 10, backgroundColor: theme.bgCard },
+    panelTitle: { color: theme.textPrimary, fontWeight: '700', marginBottom: 2, fontSize: 17 },
+    scoreFeedPanel: { marginTop: 10, borderWidth: 1, borderColor: theme.borderSoft, borderRadius: 12, padding: 10, backgroundColor: theme.bgCard, maxHeight: 360 },
+    scoreFeedTitle: { color: theme.textPrimary, fontWeight: '700', marginBottom: 6 },
+    scoreFeedItem: { color: theme.textSecondary, fontSize: 12, marginTop: 3 },
+    scoreFeedGain: { color: '#16A34A' },
+    scoreFeedLose: { color: '#DC2626' },
+    scoreFeedFan: { color: '#D97706' },
+    row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+    input: { borderWidth: 1, borderColor: theme.borderSoft, borderRadius: 10, color: theme.textPrimary, paddingHorizontal: 10, paddingVertical: 10, marginTop: 8, backgroundColor: theme.inputBg },
+    nameInput: { minWidth: 180, flex: 1 },
+    btn: { minHeight: 36, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: theme.brand, backgroundColor: theme.brand, justifyContent: 'center' },
+    btnSecondary: { backgroundColor: theme.btnSecondaryBg, borderColor: theme.borderSoft },
+    btnDanger: { backgroundColor: theme.btnDangerBg, borderColor: theme.danger },
+    btnGhost: { backgroundColor: 'transparent', borderColor: 'transparent' },
+    btnPressed: { opacity: 0.85, transform: [{ translateY: 1 }] },
+    btnText: { color: '#FFFFFF', fontWeight: '600', fontSize: 14 },
+    btnTextSecondary: { color: theme.btnSecondaryText },
+    btnTextDanger: { color: theme.btnDangerText },
+    btnTextGhost: { color: theme.btnGhostText },
+    btnDisabled: { opacity: 0.55 },
+    btnTextDisabled: { color: '#9CA3AF' },
+    meta: { color: theme.textSecondary, marginTop: 4, fontSize: 12 },
 
-  tablePanel: { flex: 1, borderWidth: 1, borderColor: '#334155', borderRadius: 12, padding: 10, backgroundColor: '#0b1220' },
-  tableHeader: { marginBottom: 8 },
-  tableTitle: { color: '#f8fafc', fontWeight: '700', fontSize: 16 },
-  tableSurface: { borderRadius: 10, padding: 10, backgroundColor: '#0a3a32', alignItems: 'stretch' },
-  middleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 8, columnGap: 10 },
-  riversRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', columnGap: 8, marginTop: 8 },
+    tablePanel: { flex: 1, borderWidth: 1, borderColor: theme.borderSoft, borderRadius: 14, padding: 12, backgroundColor: theme.bgPanel },
+    tableHeader: { marginBottom: 10 },
+    tableTitle: { color: theme.textPrimary, fontWeight: '700', fontSize: 24, lineHeight: 30 },
+    tableSurface: {
+      borderRadius: 12,
+      paddingHorizontal: 16,
+      paddingVertical: 18,
+      minHeight: 680,
+      backgroundColor: theme.bgTable,
+      alignItems: 'stretch'
+    },
+    middleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 8, columnGap: 10 },
+    riversRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', columnGap: 10, marginTop: 10 },
 
-  seatPanel: { minWidth: 200, minHeight: 66, borderWidth: 1, borderColor: '#1f2937', borderRadius: 8, backgroundColor: '#0f172a', padding: 8, alignSelf: 'center' },
-  seatPanelVertical: { minWidth: 132, width: 132 },
-  seatPanelLeft: { marginTop: 0, alignSelf: 'center' },
-  seatPanelRight: { marginTop: 0, alignSelf: 'center' },
-  seatPanelTurn: { borderColor: '#fbbf24', shadowColor: '#fbbf24', shadowOpacity: 0.45, shadowRadius: 8 },
-  seatNameTurn: { color: '#fde68a' },
-  seatName: { color: '#f8fafc', fontWeight: '700' },
-  meldGroupWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 },
-  meldGroup: { borderWidth: 1, borderColor: '#334155', borderRadius: 6, padding: 3, backgroundColor: '#0b1220' },
-  meldTilesRow: { flexDirection: 'row', gap: 2 },
-  meldBadge: { color: '#94a3b8', fontSize: 10, textAlign: 'center', marginTop: 2 },
+    seatPanel: { minWidth: 210, minHeight: 86, borderWidth: 1, borderColor: theme.borderSoft, borderRadius: 12, backgroundColor: theme.bgPanel, padding: 10, alignSelf: 'center' },
+    seatPanelVertical: { minWidth: 136, width: 136 },
+    seatPanelLeft: { marginTop: 0, alignSelf: 'center' },
+    seatPanelRight: { marginTop: 0, alignSelf: 'center' },
+    seatPanelTurn: { borderColor: 'rgba(59,130,246,0.7)', shadowColor: theme.brand, shadowOpacity: 0.3, shadowRadius: 8 },
+    seatNameTurn: { color: '#BFDBFE' },
+    seatName: { color: theme.textPrimary, fontWeight: '700' },
+    meldGroupWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 },
+    meldGroup: { borderWidth: 1, borderColor: theme.borderSoft, borderRadius: 8, padding: 3, backgroundColor: theme.inputBg },
+    meldTilesRow: { flexDirection: 'row', gap: 2 },
+    meldBadge: { color: theme.textSecondary, fontSize: 10, textAlign: 'center', marginTop: 2 },
 
-  centerHud: { width: '92%', maxWidth: 760, alignSelf: 'center', borderWidth: 1, borderColor: '#1f2937', borderRadius: 8, backgroundColor: '#111827', padding: 8, alignItems: 'center' },
-  centerTitle: { color: '#f8fafc', fontWeight: '700' },
-  centerHudLine: { textAlign: 'center', width: '100%' },
-  lastDiscardBadge: { marginTop: 6, borderWidth: 1, borderColor: '#334155', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: '#0b1220' },
-  lastDiscardBadgeFlash: { borderColor: '#f59e0b', backgroundColor: '#3f2a00' },
-  lastDiscardText: { color: '#fef3c7', fontWeight: '700', fontSize: 12 },
+    centerHud: { width: '94%', maxWidth: 900, alignSelf: 'center', borderWidth: 1, borderColor: theme.borderSoft, borderRadius: 12, backgroundColor: theme.bgPanel, padding: 10, alignItems: 'center' },
+    centerTitle: { color: theme.textPrimary, fontWeight: '700', fontSize: 18, lineHeight: 24 },
+    centerHudLine: { textAlign: 'center', width: '100%' },
+    lastDiscardBadge: { marginTop: 6, borderWidth: 1, borderColor: theme.borderSoft, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: theme.inputBg },
+    lastDiscardBadgeFlash: { borderColor: theme.warning, backgroundColor: '#3A2A10' },
+    lastDiscardText: { color: '#FEF3C7', fontWeight: '700', fontSize: 12 },
 
-  riversWrap: { width: '60%', alignSelf: 'center', marginTop: 8, borderWidth: 1, borderColor: '#14532d', borderRadius: 8, padding: 8, backgroundColor: '#064e3b' },
-  bottomSeatWrap: { marginTop: 8, alignItems: 'center' },
-  riverGrid: { alignItems: 'center', marginVertical: 2 },
-  riverGridCompact: { width: '48%' },
-  riverRow: { flexDirection: 'row', gap: 4, minHeight: 30, justifyContent: 'center' },
-  riverMiddle: { flexDirection: 'row', justifyContent: 'space-between', marginVertical: 6 },
-  riverPlaceholder: { width: 24, height: 34, borderRadius: 5, borderWidth: 1, borderColor: '#065f46', backgroundColor: '#065f46' },
+    riversWrap: { width: '74%', minHeight: 300, alignSelf: 'center', marginTop: 14, borderWidth: 1, borderColor: theme.riverBorder, borderRadius: 12, padding: 10, backgroundColor: theme.riverBg },
+    bottomSeatWrap: { marginTop: 14, alignItems: 'center' },
+    riverGrid: { alignItems: 'center', marginVertical: 2 },
+    riverGridCompact: { width: '48%' },
+    riverRow: { flexDirection: 'row', gap: 4, minHeight: 30, justifyContent: 'center' },
+    riverMiddle: { flexDirection: 'row', justifyContent: 'space-between', marginVertical: 6 },
+    riverPlaceholder: { width: 24, height: 34, borderRadius: 5, borderWidth: 1, borderColor: theme.riverBorder, backgroundColor: theme.riverBg },
 
-  actionBarWrap: { marginTop: 10, backgroundColor: '#111827', borderRadius: 8, padding: 8, borderWidth: 1, borderColor: '#334155' },
-  actionBarHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  actionTitle: { color: '#f8fafc', fontWeight: '700' },
-  actionTimer: { color: '#86efac', fontWeight: '700' },
-  actionTimerWarn: { color: '#fbbf24' },
-  actionTimerDanger: { color: '#f87171' },
-  countdownBar: { height: 4, borderRadius: 999, backgroundColor: '#22c55e', marginBottom: 6 },
-  countdownBarWarn: { backgroundColor: '#f59e0b' },
-  countdownBarDanger: { backgroundColor: '#ef4444' },
-  actionBar: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
-  handArea: { marginTop: 10, borderTopWidth: 1, borderTopColor: '#334155', paddingTop: 10 },
-  actionToast: { alignSelf: 'center', marginTop: 8, backgroundColor: '#312e81', borderColor: '#818cf8', borderWidth: 1, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999 },
-  actionToastText: { color: '#e0e7ff', fontWeight: '700' },
-  settlementOverlay: { marginTop: 10, borderWidth: 1, borderColor: '#7c3aed', borderRadius: 10, padding: 10, backgroundColor: '#1f1147' },
-  settlementModalMask: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: 'rgba(2,6,23,0.72)', justifyContent: 'center', alignItems: 'center', zIndex: 30 },
-  settlementModalCard: { width: '86%', maxWidth: 820, borderWidth: 1, borderColor: '#7c3aed', borderRadius: 12, padding: 12, backgroundColor: '#1f1147' },
-  settlementTitle: { color: '#f5d0fe', fontWeight: '800', fontSize: 16 },
-  settlementItem: { color: '#e9d5ff', marginTop: 4 },
-  settlementItemTop: { color: '#fde68a', fontWeight: '800' },
-  revealPanel: { marginTop: 8, borderWidth: 1, borderColor: '#4c1d95', borderRadius: 8, padding: 8, backgroundColor: '#130a2f' },
-  revealTitle: { color: '#e9d5ff', fontWeight: '700' },
-  revealRow: { marginTop: 6 },
-  revealName: { color: '#ddd6fe', marginBottom: 4, fontSize: 12 },
-  revealTiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
-  revealGap: { width: 14 },
-  revealItem: { color: '#ddd6fe', marginTop: 4, fontSize: 12 },
+    actionBarWrap: { marginTop: 12, backgroundColor: theme.bgCard, borderRadius: 12, padding: 10, borderWidth: 1, borderColor: theme.borderSoft },
+    actionBarHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+    actionTitle: { color: theme.textPrimary, fontWeight: '700' },
+    actionTimer: { color: theme.success, fontWeight: '700' },
+    actionTimerWarn: { color: theme.warning },
+    actionTimerDanger: { color: '#FCA5A5' },
+    countdownBar: { height: 4, borderRadius: 999, backgroundColor: theme.success, marginBottom: 6 },
+    countdownBarWarn: { backgroundColor: theme.warning },
+    countdownBarDanger: { backgroundColor: theme.danger },
+    actionBar: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
+    handArea: { marginTop: 12, borderTopWidth: 1, borderTopColor: theme.borderSoft, paddingTop: 10 },
+    actionToast: { alignSelf: 'center', marginTop: 8, backgroundColor: theme.toastBg, borderColor: theme.brand, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999 },
+    actionToastText: { color: theme.toastText, fontWeight: '700' },
+    settlementOverlay: { marginTop: 10, borderWidth: 1, borderColor: theme.borderSoft, borderRadius: 10, padding: 10, backgroundColor: theme.bgCard },
+    settlementModalMask: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: theme.modalMask, justifyContent: 'center', alignItems: 'center', zIndex: 30 },
+    settlementModalCard: { width: '86%', maxWidth: 820, borderWidth: 1, borderColor: theme.borderSoft, borderRadius: 14, padding: 14, backgroundColor: theme.bgCard },
+    settlementTitle: { color: theme.textPrimary, fontWeight: '800', fontSize: 18 },
+    settlementItem: { color: theme.textSecondary, marginTop: 5 },
+    settlementItemTop: { color: '#FDE68A', fontWeight: '800' },
+    revealPanel: { marginTop: 8, borderWidth: 1, borderColor: theme.borderSoft, borderRadius: 10, padding: 8, backgroundColor: theme.bgCard },
+    revealTitle: { color: theme.textPrimary, fontWeight: '700' },
+    revealRow: { marginTop: 6 },
+    revealName: { color: theme.textSecondary, marginBottom: 4, fontSize: 12 },
+    revealTiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+    revealGap: { width: 14 },
+    revealItem: { color: theme.textSecondary, marginTop: 4, fontSize: 12 },
 
-  panel: { marginTop: 10, borderWidth: 1, borderColor: '#334155', borderRadius: 10, padding: 8, backgroundColor: '#0b1220' },
-  title: { color: '#f8fafc', fontWeight: '700' },
+    panel: { marginTop: 10, borderWidth: 1, borderColor: theme.borderSoft, borderRadius: 10, padding: 8, backgroundColor: theme.bgPanel },
+    title: { color: theme.textPrimary, fontWeight: '700' },
 
-  tileRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6, justifyContent: 'center' },
-  tileRowDisabled: { opacity: 0.55 },
-  tile: { width: 38, height: 58, borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, backgroundColor: '#fff', padding: 4, justifyContent: 'space-between' },
-  tileSmall: { width: 24, height: 34, borderRadius: 5, padding: 2 },
-  tileSel: { borderColor: '#f59e0b', transform: [{ translateY: -2 }] },
-  tileHighlight: { borderColor: '#fde047', borderWidth: 2, shadowColor: '#fde047', shadowOpacity: 0.5, shadowRadius: 4 },
-  tileInactive: { opacity: 0.72, backgroundColor: '#f3f4f6' },
-  corner: { fontSize: 9, fontWeight: '700' },
-  rank: { fontSize: 20, fontWeight: '800', textAlign: 'center' }
-});
+    tileRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6, justifyContent: 'center' },
+    tileRowDisabled: { opacity: 0.55 },
+    tile: { width: 38, height: 58, borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, backgroundColor: '#FFFFFF', padding: 4, justifyContent: 'space-between' },
+    tileSmall: { width: 24, height: 34, borderRadius: 5, padding: 2 },
+    tileSel: { borderColor: theme.warning, transform: [{ translateY: -2 }] },
+    tileHighlight: { borderColor: '#FDE047', borderWidth: 2, shadowColor: '#FDE047', shadowOpacity: 0.45, shadowRadius: 4 },
+    tilePressed: { transform: [{ translateY: 1 }] },
+    tileInactive: { opacity: 0.72, backgroundColor: '#F3F4F6' },
+    corner: { fontSize: 9, fontWeight: '700' },
+    rank: { fontSize: 20, fontWeight: '800', textAlign: 'center' }
+  });
+}

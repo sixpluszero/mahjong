@@ -14,9 +14,12 @@
 - `packages/web`:
   - CN: 浏览器客户端（单页），负责交互、渲染、连接管理与重连。
   - EN: Browser SPA client handling interaction, rendering, connection management, and reconnect/resume.
+- `apps/mac`:
+  - CN: macOS 客户端（React Native for macOS host + 共享前端逻辑），负责桌面牌桌 UI、房间管理面板、结算弹窗与本地交互体验。
+  - EN: macOS client (React Native macOS host + shared client logic) for desktop table UI, room-management panel, settlement modal, and local UX.
 - Root scripts:
-  - CN: `npm run dev:server`, `npm run test`, `npm run stress`。
-  - EN: `npm run dev:server`, `npm run test`, `npm run stress`.
+  - CN: `npm run dev:server`, `npm run dev:mac`, `npm run test`, `npm run stress`。
+  - EN: `npm run dev:server`, `npm run dev:mac`, `npm run test`, `npm run stress`.
 
 ## 3) Layered Architecture / 分层架构
 - CN: `web -> server(protocol) -> shared(engine)`，其中 server 是唯一裁判。
@@ -64,6 +67,8 @@
 - EN: Maintains room-level state outside engine: `roundNo`, `maxRounds`, `matchFinished`, `roundHistory`, `finalStandings`, `rematchReadySeats`.
 - CN: 玩家席位附加字段：`isBot`, `online`, `auto`, `totalScore`, `resumeToken`。
 - EN: Seat metadata includes `isBot`, `online`, `auto`, `totalScore`, `resumeToken`.
+- CN: 结算阶段附加可视化数据（供 web/mac 使用）：`state.settlementEvents`、`roundHistory[-1].scoreChanges`、`revealedHands`（结算亮牌）。
+- EN: Settlement-phase visualization payloads (for web/mac): `state.settlementEvents`, `roundHistory[-1].scoreChanges`, and `revealedHands`.
 
 ## 7) Bot & Autopilot Logic / 机器人与托管策略
 - CN: 机器人与托管共用决策入口（服务端），优先级：`hu > gang > peng > pass`；回合中优先 `self_hu`/杠，再出牌。
@@ -74,12 +79,20 @@
 - EN: At settlement with no human online, no auto-rematch is triggered.
 
 ## 8) Frontend Architecture / 前端架构
-- CN: 当前主逻辑集中在 `packages/web/src/app.js`（单文件状态容器 + 消息处理 + 渲染函数）。
-- EN: Main logic currently lives in `packages/web/src/app.js` (single-file state container + message handlers + render functions).
-- CN: 重连策略为指数退避，并在本地存储 `resumeSession`。
-- EN: Reconnect uses exponential backoff and persists `resumeSession` in localStorage.
-- CN: UI包含房间区、对局区、结算区、历史/总分/走势/最终统计。
-- EN: UI includes room controls, gameplay panel, settlement timeline, and history/totals/trend/final stats.
+- Web (`packages/web`):
+  - CN: 主逻辑集中在 `packages/web/src/app.js`（单文件状态容器 + 消息处理 + 渲染函数）。
+  - EN: Main logic currently lives in `packages/web/src/app.js` (single-file state container + message handlers + render functions).
+  - CN: 重连策略为指数退避，并在本地存储 `resumeSession`。
+  - EN: Reconnect uses exponential backoff and persists `resumeSession` in localStorage.
+  - CN: UI包含房间区、对局区、结算区、历史/总分/走势/最终统计。
+  - EN: UI includes room controls, gameplay panel, settlement timeline, and history/totals/trend/final stats.
+- macOS (`apps/mac`):
+  - CN: 通过 `apps/mac/src/lobby-runtime.ts` 对接同一 WebSocket 协议（与 web 共享服务端契约）。
+  - EN: Uses `apps/mac/src/lobby-runtime.ts` to consume the same WebSocket protocol contract as web.
+  - CN: 牌桌 UI 位于 `apps/mac/src/App.tsx`，包含座位面板、弃牌河、动作条、倒计时、结算弹窗、亮牌展示与得分信息流。
+  - EN: Table UI lives in `apps/mac/src/App.tsx`, including seat panels, discard rivers, action tray, countdown, settlement modal, revealed-hands view, and score feed.
+  - CN: mac 客户端属于展示层，不做规则裁定；所有规则与结算来源仍是 `shared + server`。
+  - EN: mac client remains a presentation layer; rule/settlement authority remains `shared + server`.
 
 ## 9) Testing Strategy / 测试策略
 - Unit tests:

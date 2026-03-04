@@ -752,7 +752,7 @@ function createStyles(theme: ThemeTokens) {
     tile: { width: 38, height: 58, borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, backgroundColor: '#FFFFFF', padding: 4, justifyContent: 'space-between' },
     tileSmall: { width: 24, height: 34, borderRadius: 5, padding: 2 },
     tileSel: { borderColor: theme.warning, transform: [{ translateY: -2 }] },
-    tileHighlight: { borderColor: '#FDE047', borderWidth: 2, shadowColor: '#FDE047', shadowOpacity: 0.45, shadowRadius: 4 },
+    tileHighlight: { borderColor: '#FDE047', borderWidth: 3, shadowColor: '#FDE047', shadowOpacity: 0.9, shadowRadius: 9, backgroundColor: '#FFFDEB' },
     tilePressed: { transform: [{ translateY: 1 }] },
     tileInactive: { opacity: 0.72, backgroundColor: '#F3F4F6' },
     corner: { fontSize: 9, fontWeight: '700' },

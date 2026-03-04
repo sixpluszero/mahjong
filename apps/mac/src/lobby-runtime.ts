@@ -2,7 +2,7 @@ import { reduceServerMessage } from '../../../packages/client-core/src/web-entry
 
 export type LobbyStatusKey = 'idle'|'preview_connected'|'preview_disconnected'|'preview_hello'|'preview_room_created'|'preview_room_joined'|'connecting'|'connected'|'disconnected'|'room_synced'|'error';
 export type Meld = { type: string; tile: { suit: 'wan'|'tiao'|'tong'; rank: number } };
-export type LobbyPlayer = { seat: number; name: string; isBot: boolean; ready: boolean; online: boolean; totalScore: number; roundDelta?: number; lackSuit?: 'wan'|'tiao'|'tong'|null; melds: Meld[] };
+export type LobbyPlayer = { seat: number; name: string; isBot: boolean; ready: boolean; online: boolean; totalScore: number; roundDelta?: number; lackSuit?: 'wan'|'tiao'|'tong'|null; melds: Meld[]; handCount?: number };
 export type TableDiscard = { seat: number; tileCode: string; claimed?: boolean };
 export type HandTile = { id: string; code: string; suit: 'wan'|'tiao'|'tong'; rank: number };
 export type PendingReaction = { fromSeat: number; canHu: boolean; canGang: boolean; canPeng: boolean; tileCode: string } | null;
@@ -200,7 +200,8 @@ function createLiveRuntime(wsUrl: string, onState: RuntimeOptions['onState']): L
         totalScore: gp.totalScore ?? p.totalScore ?? 0,
         roundDelta: gp.roundScore ?? gp.deltaScore ?? gp.changeScore ?? p.roundScore ?? p.deltaScore ?? p.changeScore ?? 0,
         lackSuit: lackRaw,
-        melds: gp.melds || []
+        melds: gp.melds || [],
+        handCount: gp.handCount ?? p.handCount ?? 0
       };
     });
   };

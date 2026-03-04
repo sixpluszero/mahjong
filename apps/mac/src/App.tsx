@@ -323,9 +323,9 @@ export default function App(): JSX.Element {
             <View style={styles.tableSurface}>
               <SeatPanel styles={styles} player={seatMap.top} rematchReadySeats={state.rematchReadySeats} isTurn={state.turnSeat === seatMap.top?.seat} isSelf={false} />
               <View style={styles.riversRow}>
-                <SeatPanel styles={styles} player={seatMap.left} rematchReadySeats={state.rematchReadySeats} vertical side="left" isTurn={state.turnSeat === seatMap.left?.seat} isSelf={false} />
+                <SeatPanel styles={styles} player={seatMap.left} rematchReadySeats={state.rematchReadySeats} vertical side="left" enlarge isTurn={state.turnSeat === seatMap.left?.seat} isSelf={false} />
                 <DiscardRivers styles={styles} discardsBySeat={discardsBySeat} mySeat={mySeat} reactionTarget={reactionTarget} />
-                <SeatPanel styles={styles} player={seatMap.right} rematchReadySeats={state.rematchReadySeats} vertical side="right" isTurn={state.turnSeat === seatMap.right?.seat} isSelf={false} />
+                <SeatPanel styles={styles} player={seatMap.right} rematchReadySeats={state.rematchReadySeats} vertical side="right" enlarge isTurn={state.turnSeat === seatMap.right?.seat} isSelf={false} />
               </View>
               <View style={styles.bottomSeatWrap}>
                 <SeatPanel styles={styles} player={bottomPlayer} rematchReadySeats={state.rematchReadySeats} isTurn={state.turnSeat === bottomPlayer?.seat} isSelf />
@@ -383,7 +383,7 @@ export default function App(): JSX.Element {
 
             <View style={styles.handArea}>
               <View style={styles.handRow}>
-                <View style={[styles.tileRow, styles.tileRowHand, !(canDiscard || inExchange) && styles.tileRowDisabled]}>{state.yourHandTiles.map((tile) => <Tile key={tile.id} styles={styles} code={tile.code} selected={exchangeSelected.includes(tile.id)} active={canDiscard || inExchange} onPress={() => onTilePress(tile)} />)}</View>
+                <View style={[styles.tileRow, styles.tileRowHand, !(canDiscard || inExchange) && styles.tileRowDisabled]}>{state.yourHandTiles.map((tile) => <Tile key={tile.id} styles={styles} code={tile.code} borderless selected={exchangeSelected.includes(tile.id)} active={canDiscard || inExchange} onPress={() => onTilePress(tile)} />)}</View>
                 {actionOpen ? (
                   <View style={[styles.actionBarWrap, styles.actionBarHandRight]}>
                     <View style={styles.actionBarHeader}>
@@ -450,7 +450,7 @@ function InputField({ styles, theme, value, onChangeText, placeholder, compact =
   );
 }
 
-function SeatPanel({ styles, player, rematchReadySeats, vertical = false, side, isTurn = false, isSelf = false }: { styles: AppStyles; player?: LobbyPlayer; rematchReadySeats: number[]; vertical?: boolean; side?: 'left' | 'right'; isTurn?: boolean; isSelf?: boolean }) {
+function SeatPanel({ styles, player, rematchReadySeats, vertical = false, side, enlarge = false, isTurn = false, isSelf = false }: { styles: AppStyles; player?: LobbyPlayer; rematchReadySeats: number[]; vertical?: boolean; side?: 'left' | 'right'; enlarge?: boolean; isTurn?: boolean; isSelf?: boolean }) {
   if (!player) {
     return (
       <View style={[styles.seatPanel, vertical && styles.seatPanelVertical, side === 'left' && styles.seatPanelLeft, side === 'right' && styles.seatPanelRight]}>
@@ -470,6 +470,8 @@ function SeatPanel({ styles, player, rematchReadySeats, vertical = false, side, 
     if (rawTiles && rawTiles.length > 0) return rawTiles.map((t: any) => `${suitPrefix(t.suit)}${t.rank}`);
     return Array.from({ length: inferMeldCount(raw.type) }, () => `${suitPrefix(m.tile.suit)}${m.tile.rank}`);
   });
+  const concealedCount = isSelf ? 0 : Math.max(0, Number((player as any).handCount ?? 0));
+  const concealedTiles = Array.from({ length: concealedCount }, (_, i) => i);
   return (
     <View style={[
       styles.seatPanel,
@@ -497,16 +499,22 @@ function SeatPanel({ styles, player, rematchReadySeats, vertical = false, side, 
           </>
         )}
       </View>
-      <View style={[styles.seatMeldPanel, vertical ? styles.seatMeldPanelVertical : styles.seatMeldPanelHorizontal]}>
+      <View style={[styles.seatMeldPanel, isSelf && styles.seatMeldPanelSelfTransparent, vertical ? styles.seatMeldPanelVertical : styles.seatMeldPanelHorizontal]}>
         {vertical ? (
           <View style={[styles.meldGroupWrap, compact && styles.meldGroupWrapCompact, styles.meldGroupWrapVerticalSingle]}>
             {verticalMeldTiles.map((c, i) => (
-              <SideMiniTile key={`${player.seat}-v-${i}-${c}`} styles={styles} code={c} side={side || 'left'} />
+              <SideMiniTile key={`${player.seat}-v-${i}-${c}`} styles={styles} code={c} side={side || 'left'} borderless enlarge={enlarge} />
+            ))}
+            {concealedTiles.map((i) => (
+              <SideMiniTile key={`${player.seat}-vh-${i}`} styles={styles} code="back" side={side || 'left'} borderless enlarge={enlarge} />
             ))}
           </View>
         ) : (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.meldInlineScroller} contentContainerStyle={[styles.meldGroupWrap, compact && styles.meldGroupWrapCompact, styles.meldGroupWrapInlineNowrap]}>
             {meldNodes}
+            {concealedTiles.map((i) => (
+              <MiniTile key={`${player.seat}-h-${i}`} styles={styles} code="back" borderless />
+            ))}
           </ScrollView>
         )}
       </View>
@@ -514,7 +522,7 @@ function SeatPanel({ styles, player, rematchReadySeats, vertical = false, side, 
   );
 }
 
-function MeldGroupView({ styles, meld, side }: { styles: AppStyles; meld: Meld; side?: 'left' | 'right' }) {
+function MeldGroupView({ styles, meld, side, enlarge = false }: { styles: AppStyles; meld: Meld; side?: 'left' | 'right'; enlarge?: boolean }) {
   const raw: any = meld as any;
   const rawTiles = Array.isArray(raw.tiles) ? raw.tiles : null;
   const tiles = rawTiles && rawTiles.length > 0
@@ -525,8 +533,8 @@ function MeldGroupView({ styles, meld, side }: { styles: AppStyles; meld: Meld; 
       <View style={styles.meldTilesRow}>
         {tiles.map((c, i) => (
           side
-            ? <SideMiniTile key={`${c}-${i}`} styles={styles} code={c} side={side} />
-            : <MiniTile key={`${c}-${i}`} styles={styles} code={c} />
+            ? <SideMiniTile key={`${c}-${i}`} styles={styles} code={c} side={side} borderless enlarge={enlarge} />
+            : <MiniTile key={`${c}-${i}`} styles={styles} code={c} borderless />
         ))}
       </View>
     </View>
@@ -615,8 +623,8 @@ function RiverGrid({ styles, tiles, compact = false, vertical = false, fromBotto
           {padded.slice(line * perLine, (line + 1) * perLine).map((c, i) => {
             const index = line * perLine + i;
             if (!c) return <View key={`${line}-${i}-x`} style={verticalSide ? styles.riverGhostSide : styles.riverGhostTile} />;
-            if (verticalSide) return <SideMiniTile key={`${line}-${i}-${c}`} styles={styles} code={c} side={verticalSide} highlighted={index === highlightIndex} />;
-            return <MiniTile key={`${line}-${i}-${c}`} styles={styles} code={c} highlighted={index === highlightIndex} />;
+            if (verticalSide) return <SideMiniTile key={`${line}-${i}-${c}`} styles={styles} code={c} side={verticalSide} highlighted={index === highlightIndex} river />;
+            return <MiniTile key={`${line}-${i}-${c}`} styles={styles} code={c} highlighted={index === highlightIndex} river />;
           })}
         </View>
       ))}
@@ -643,7 +651,7 @@ function findPlayerBySeat(players: LobbyPlayer[], seat: number) { return players
 function groupDiscardsBySeat(discards: { seat: number; tileCode: string; claimed?: boolean }[]) { const map: Record<number, string[]> = {}; for (const d of discards) { if (d.claimed) continue; if (!map[d.seat]) map[d.seat] = []; map[d.seat].push(d.tileCode); } return map; }
 
 type BtnVariant = 'primary' | 'secondary' | 'danger' | 'ghost' | 'accent';
-function Tile({ styles, code, small = false, selected = false, active = false, highlighted = false, onPress }: { styles: AppStyles; code: string; small?: boolean; selected?: boolean; active?: boolean; highlighted?: boolean; onPress?: () => void }) {
+function Tile({ styles, code, small = false, river = false, borderless = false, selected = false, active = false, highlighted = false, onPress }: { styles: AppStyles; code: string; small?: boolean; river?: boolean; borderless?: boolean; selected?: boolean; active?: boolean; highlighted?: boolean; onPress?: () => void }) {
   const pure = code.includes('@') ? code.split('@')[0] : code;
   const asset = getTileAsset(pure, 'upright');
   const [imgFailed, setImgFailed] = useState(false);
@@ -652,12 +660,12 @@ function Tile({ styles, code, small = false, selected = false, active = false, h
     <Pressable
       onPress={onPress}
       disabled={!onPress}
-      style={({ pressed }) => [styles.tile, small && styles.tileSmall, asset && styles.tileImageHost, selected && styles.tileSel, highlighted && styles.tileHighlight, !active && styles.tileInactive, pressed && onPress && styles.tilePressed]}
+      style={({ pressed }) => [styles.tile, small && styles.tileSmall, small && river && styles.tileSmallRiver, small && river && styles.tileSmallRiverBorderless, borderless && styles.tileBorderless, asset && styles.tileImageHost, selected && styles.tileSel, highlighted && styles.tileHighlight, !active && styles.tileInactive, !active && borderless && styles.tileInactiveBorderless, pressed && onPress && styles.tilePressed]}
     >
       {asset && !imgFailed ? (
         <Image
           source={asset}
-          style={[styles.tileImage, small && styles.tileImageSmall]}
+          style={[styles.tileImage, small && styles.tileImageSmall, small && river && styles.tileImageSmallRiver]}
           resizeMode="contain"
           onLoad={() => console.log('[tile-load]', pure)}
           onError={(e) => {
@@ -675,8 +683,8 @@ function Tile({ styles, code, small = false, selected = false, active = false, h
     </Pressable>
   );
 }
-function MiniTile({ styles, code, highlighted = false }: { styles: AppStyles; code: string; highlighted?: boolean }) { return <Tile styles={styles} code={code} small active highlighted={highlighted} />; }
-function SideMiniTile({ styles, code, side, highlighted = false }: { styles: AppStyles; code: string; side: 'left' | 'right'; highlighted?: boolean }) {
+function MiniTile({ styles, code, highlighted = false, river = false, borderless = false }: { styles: AppStyles; code: string; highlighted?: boolean; river?: boolean; borderless?: boolean }) { return <Tile styles={styles} code={code} small river={river} borderless={borderless} active highlighted={highlighted} />; }
+function SideMiniTile({ styles, code, side, highlighted = false, river = false, borderless = false, enlarge = false }: { styles: AppStyles; code: string; side: 'left' | 'right'; highlighted?: boolean; river?: boolean; borderless?: boolean; enlarge?: boolean }) {
   const asset = getTileAsset(code, side === 'left' ? 'side_left' : 'side_right');
   const [imgFailed, setImgFailed] = useState(false);
   const pure = code.includes('@') ? code.split('@')[0] : code;
@@ -684,12 +692,12 @@ function SideMiniTile({ styles, code, side, highlighted = false }: { styles: App
   const rank = Number(pure.slice(1));
   const { label, color } = meta(suit);
   return (
-    <View style={[styles.sideTile, asset && styles.sideTileImageHost, highlighted && styles.tileHighlight]}>
+    <View style={[styles.sideTile, river && styles.sideTileRiver, enlarge && styles.sideTileEnlarged, river && styles.sideTileRiverBorderless, borderless && styles.sideTileBorderless, asset && styles.sideTileImageHost, highlighted && styles.tileHighlight]}>
       {asset && !imgFailed ? (
         <Image
           source={asset}
-          style={styles.sideTileImageFull}
-          resizeMode="cover"
+          style={[styles.sideTileImageFull, river && styles.sideTileImageFullRiver]}
+          resizeMode="contain"
           onLoad={() => console.log('[side-tile-load]', pure, side)}
           onError={(e) => {
             console.warn('[side-tile-error]', pure, side, e?.nativeEvent);
@@ -865,14 +873,15 @@ function createStyles(theme: ThemeTokens) {
     },
     seatInfoPanelVertical: { minWidth: 0, maxWidth: '100%', width: '100%', marginTop: 0 },
     seatMeldPanel: {
-      borderWidth: 1,
-      borderColor: theme.borderSoft,
+      borderWidth: 0,
+      borderColor: 'transparent',
       borderRadius: 8,
       paddingHorizontal: 4,
       paddingVertical: 4,
-      backgroundColor: theme.bgPanel,
+      backgroundColor: 'transparent',
       overflow: 'visible'
     },
+    seatMeldPanelSelfTransparent: { borderWidth: 0, backgroundColor: 'transparent' },
     seatMeldPanelHorizontal: { flex: 1, minWidth: 140, minHeight: 0, paddingVertical: 1, alignSelf: 'center' },
     seatMeldPanelVertical: { alignSelf: 'center', alignItems: 'center' },
     seatNameTurn: { color: '#BFDBFE' },
@@ -884,7 +893,7 @@ function createStyles(theme: ThemeTokens) {
     meldGroupWrapInline: { marginTop: 0, justifyContent: 'flex-end', maxWidth: 220 },
     meldGroupWrapVerticalSingle: { marginTop: 4, flexDirection: 'column', flexWrap: 'nowrap', alignItems: 'center', justifyContent: 'flex-start' },
     meldGroupWrapInlineNowrap: { marginTop: 0, flexWrap: 'nowrap', alignItems: 'center', paddingRight: 2 },
-    meldGroup: { borderWidth: 1, borderColor: theme.borderSoft, borderRadius: 8, padding: 3, backgroundColor: theme.inputBg },
+    meldGroup: { borderWidth: 1, borderColor: theme.borderSoft, borderRadius: 8, padding: 3, backgroundColor: 'transparent' },
     meldTilesRow: { flexDirection: 'row', gap: 2 },
 
     centerHud: { width: '100%', marginTop: 10, alignSelf: 'stretch', borderWidth: 1, borderColor: theme.borderSoft, borderRadius: 12, backgroundColor: theme.bgCard, padding: 10, alignItems: 'flex-start' },
@@ -920,7 +929,7 @@ function createStyles(theme: ThemeTokens) {
     countdownBarWarn: { backgroundColor: theme.warning },
     countdownBarDanger: { backgroundColor: theme.danger },
     actionBar: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
-    handArea: { marginTop: 12, borderTopWidth: 1, borderTopColor: theme.borderSoft, paddingTop: 10 },
+    handArea: { marginTop: 12, borderTopWidth: 0, borderTopColor: 'transparent', paddingTop: 10, backgroundColor: 'transparent' },
     handRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', columnGap: 10 },
     tileRowHand: { flex: 1, justifyContent: 'flex-start' },
     actionToast: { alignSelf: 'center', marginTop: 8, backgroundColor: theme.toastBg, borderColor: theme.brand, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999 },
@@ -946,18 +955,28 @@ function createStyles(theme: ThemeTokens) {
     tileRowDisabled: { opacity: 0.55 },
     tile: { width: 38, height: 58, borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, backgroundColor: '#FFFFFF', padding: 4, justifyContent: 'space-between', overflow: 'hidden' },
     tileSmall: { width: 29, height: 41, borderRadius: 6, padding: 2 },
+    tileSmallRiver: { width: 29, height: 41, overflow: 'visible' },
+    tileSmallRiverBorderless: { borderWidth: 0, backgroundColor: 'transparent' },
+    tileBorderless: { borderWidth: 0, backgroundColor: 'transparent' },
     tileImageHost: { padding: 0, justifyContent: 'center', alignItems: 'center' },
     tileImage: { width: 36, height: 56, borderRadius: 6 },
     tileImageSmall: { width: 27, height: 39, borderRadius: 4 },
-    sideTile: { width: 41, height: 29, borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 6, backgroundColor: '#FFFFFF', paddingHorizontal: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', overflow: 'hidden' },
+    tileImageSmallRiver: { width: 32, height: 47 },
+    sideTile: { width: 41, height: 29, borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 6, backgroundColor: 'transparent', paddingHorizontal: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', overflow: 'hidden' },
+    sideTileEnlarged: { width: 49, height: 35 },
+    sideTileRiver: { width: 41, height: 29, overflow: 'visible' },
+    sideTileRiverBorderless: { borderWidth: 0, backgroundColor: 'transparent' },
+    sideTileBorderless: { borderWidth: 0, backgroundColor: 'transparent' },
     sideTileImageHost: { paddingHorizontal: 0, justifyContent: 'center', alignItems: 'center' },
-    sideTileImageFull: { position: 'absolute', left: 1, top: 1, width: 39, height: 27, borderRadius: 4 },
+    sideTileImageFull: { width: '100%', height: '100%', borderRadius: 4 },
+    sideTileImageFullRiver: { position: 'absolute', left: -4, top: -3, width: 49, height: 35 },
     sideTileMark: { fontSize: 9, fontWeight: '700' },
     sideTileRank: { fontSize: 16, fontWeight: '800', lineHeight: 18 },
     tileSel: { borderColor: theme.warning, transform: [{ translateY: -2 }] },
     tileHighlight: { borderColor: '#FDE047', borderWidth: 3, shadowColor: '#FDE047', shadowOpacity: 0.9, shadowRadius: 9, backgroundColor: '#FFFDEB' },
     tilePressed: { transform: [{ translateY: 1 }] },
     tileInactive: { opacity: 0.72, backgroundColor: '#F3F4F6' },
+    tileInactiveBorderless: { backgroundColor: 'transparent' },
     corner: { fontSize: 9, fontWeight: '700' },
     rank: { fontSize: 20, fontWeight: '800', textAlign: 'center' }
   });

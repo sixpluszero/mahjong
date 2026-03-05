@@ -1,3 +1,5 @@
+> Navigation: [Docs Hub](../../README.md) | [Core](../../docs/core/core-readme.md) | [Platforms](../../docs/platforms/mac/mac-readme.md) | [Roadmaps](../../docs/overall-roadmap.md) | [QA](../../docs/qa/qa-smoke-checklist.md)
+
 # Mahjong Progress Log
 
 ## 开发任务看板（持续更新）
@@ -187,8 +189,8 @@ Original prompt: 我希望在这个麻将游戏中加入机器人功能。当人
   - 操作/倒计时 panel 移至手牌 panel 下方。
 
 ### 文档与清单
-- 更新 `apps/mac/TEST-CHECKLIST.md` 为川麻整局 smoke 清单。
-- 更新 `apps/mac/ROADMAP.md` 术语口径（peng/gang）。
+- 更新 `docs/platforms/mac/mac-test-checklist.md` 为川麻整局 smoke 清单。
+- 更新 `docs/platforms/mac/mac-roadmap.md` 术语口径（peng/gang）。
 
 ### 当前已知与后续
 - 若“亮牌数据条目”仍为 0，优先核验服务端实际运行进程是否为最新代码版本与端口实例。
@@ -276,3 +278,24 @@ Original prompt: 我希望在这个麻将游戏中加入机器人功能。当人
   - 修复出牌瞬间手牌底色闪现：`borderless` 牌使用 `tileInactiveBorderless`。
 - 注释与可维护性补强（`apps/mac/src/App.tsx`）：
   - 在关键约束点补充最小注释（座位映射、侧边14张预留、river固定尺寸、高亮实现、无边框状态意图），便于后续 agent 接手。
+
+## 2026-03-04（mac app specific 产品可用性缺口）
+
+### 新增待办（P0）
+- [ ] 断线重连与断线恢复（Mac 客户端端到端）
+  - 显式“重连中”状态
+  - 短线自动恢复到原房间/原座位
+  - 恢复失败时明确提示并回主菜单
+- [ ] 游戏结束“最终记分板”弹窗（区别于单局结算）
+  - 最终排名 / 总分 / 局数汇总
+  - 明确入口：再来一局 / 返回主菜单
+- [ ] 主菜单场景
+  - 设置用户名（本地持久化）
+  - 创建房间 / 加入房间
+  - 退出游戏
+- [ ] 房间内“退出房间并回主菜单”流程
+  - 清理房间态临时 UI 状态，避免串场
+
+### 新增待办（P1）
+- [ ] 全局连接状态条（主菜单/房间/牌桌）+ 一键重试
+- [ ] `App.tsx` 按场景拆分为 `MenuScene` / `RoomScene` / `TableScene`，降低后续迭代风险

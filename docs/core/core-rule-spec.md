@@ -1,3 +1,5 @@
+> Navigation: [Docs Hub](../../README.md) | [Core](../../docs/core/core-readme.md) | [Platforms](../../docs/platforms/mac/mac-readme.md) | [Roadmaps](../../docs/overall-roadmap.md) | [QA](../../docs/qa/qa-smoke-checklist.md)
+
 # 四川麻将（血战到底）规则规格 v1
 
 > 状态：冻结 v1（开发基线）
@@ -5,7 +7,7 @@
 
 ## 0. 开发任务看板
 
-开发任务看板已迁移至 [progress.md](/Users/jialin/Projects/mahjong/progress.md) 顶部并持续更新；本文件仅维护规则规格。
+开发任务看板已迁移至 [core-progress.md](/Users/jialin/Projects/mahjong/docs/core/core-progress.md) 顶部并持续更新；本文件仅维护规则规格。
 
 ## 1. 基本设定
 - 玩法：四川麻将，血战到底。

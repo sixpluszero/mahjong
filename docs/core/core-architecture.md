@@ -1,3 +1,5 @@
+> Navigation: [Docs Hub](../../README.md) | [Core](../../docs/core/core-readme.md) | [Platforms](../../docs/platforms/mac/mac-readme.md) | [Roadmaps](../../docs/overall-roadmap.md) | [QA](../../docs/qa/qa-smoke-checklist.md)
+
 # Mahjong Architecture / 麻将项目架构
 
 ## 1) Purpose / 目标
@@ -50,7 +52,7 @@
 
 ## 5) Networking Model / 网络模型
 - Transport: WebSocket (`ws`/`wss`).
-- Spec file: `packages/server/PROTOCOL.md`.
+- Spec file: `docs/packages/package-server-protocol.md`.
 - Important client->server messages:
   - `hello`, `create_room`, `join_room`, `resume_room`, `set_ready`, `add_bot`,
   - `submit_exchange`, `set_lack`, `discard`, `self_hu`, `an_gang`, `bu_gang`, `react`, `request_rematch`, `list_rooms`.
@@ -108,8 +110,8 @@
 ## 10) Collaboration Rules For Agents / 多 Agent 协作约定
 - CN: 规则修改优先在 `shared`，不要把规则散落到 `server/web`。
 - EN: Rule changes should primarily happen in `shared`; avoid duplicating rules in `server/web`.
-- CN: 协议变更必须同步更新 `packages/server/PROTOCOL.md` 与前端消息处理。
-- EN: Any protocol change must update both `packages/server/PROTOCOL.md` and frontend handlers.
+- CN: 协议变更必须同步更新 `docs/packages/package-server-protocol.md` 与前端消息处理。
+- EN: Any protocol change must update both `docs/packages/package-server-protocol.md` and frontend handlers.
 - CN: 房间/会话级功能（重连、托管、局数上限）放在 `server`。
 - EN: Room/session features (resume, autopilot, max rounds) belong in `server`.
 - CN: 提交前至少执行 `npm test`，必要时跑 `npm run stress`。

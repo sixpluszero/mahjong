@@ -249,3 +249,30 @@ Original prompt: 我希望在这个麻将游戏中加入机器人功能。当人
   - 新增 `tile-assets.ts` 静态映射，解决 RN 动态 require 限制。
   - `Tile`/`SideMiniTile` 优先渲染 PNG 资源（竖牌+左右横牌），文本绘制仅保留 fallback。
   - 资源目录新增 `assets/tiles/hd`：竖牌由 SVG 转 PNG，横牌由竖牌 PNG 直接旋转生成，保证字重一致。
+
+## 2026-03-04
+
+### macOS 客户端（牌资源与牌桌布局打磨）
+- 牌资源与命名规范统一（`apps/mac/src/assets/tiles/hd/hd0`、`hd1`）：
+  - 保留两套风格资源：`hd0`（新真实风格）与 `hd1`（旧风格）。
+  - 统一背面与横向命名：`back` / `back_side_left` / `back_side_right`，`fold` / `fold_side_left` / `fold_side_right`。
+  - `back_side_right` 由 `back_side_left` 旋转生成，减少维护分叉。
+  - 覆盖牌背按需求定制（蓝面+白边+分割线+透明区）。
+- 资源映射层增强（`apps/mac/src/tile-assets.ts`）：
+  - 支持 `hd0/hd1` 风格目录与默认风格切换（默认 `hd0`）。
+  - 新增 `back/fold` 与 side 方向资源映射，并保留兼容别名。
+- runtime 数据链路补齐（`apps/mac/src/lobby-runtime.ts`）：
+  - `LobbyPlayer` 增加 `handCount`，用于对家/侧家剩余手牌背面渲染。
+- 牌桌布局与组件渲染重构（`apps/mac/src/App.tsx`）：
+  - 左/右玩家碰杠与手牌区固定预留 14 张高度，消除摸打/碰杠时整体跳动。
+  - 左/右/上/下玩家碰杠与手牌容器改为透明，去除多余背景和边框。
+  - 碰杠牌组与弃牌区调整为无缝拼接（gap=0），并按需求放大弃牌与侧边牌面。
+  - 弃牌区容器尺寸保持稳定，仅放大牌尺寸，避免 panel 跟随抖动。
+  - 去除碰杠组 panel 包裹视觉，使上下与左右玩家表现一致。
+  - 修复 side_left/side_right 缩放后视觉偏移，保证贴图居中。
+- 反应高亮与交互反馈优化（`apps/mac/src/App.tsx`）：
+  - 可碰/杠目标牌改为金色高亮并加入闪烁动画（`Animated`）。
+  - 高亮由阴影+外圈 ring 叠加实现，修正包围不完整、圆角不一致、偏移问题。
+  - 修复出牌瞬间手牌底色闪现：`borderless` 牌使用 `tileInactiveBorderless`。
+- 注释与可维护性补强（`apps/mac/src/App.tsx`）：
+  - 在关键约束点补充最小注释（座位映射、侧边14张预留、river固定尺寸、高亮实现、无边框状态意图），便于后续 agent 接手。

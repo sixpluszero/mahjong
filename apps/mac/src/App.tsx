@@ -144,6 +144,7 @@ export default function App(): JSX.Element {
   const showActionCountdown = !!state.pendingReaction || hasSelfTurnActions;
   const [actionCountdown, setActionCountdown] = useState(0);
   useEffect(() => {
+    // Countdown is UI-only and always resets when actionable context changes.
     if (!showActionCountdown) { setActionCountdown(0); return; }
     setActionCountdown(15);
     const timer = setInterval(() => {
@@ -159,6 +160,7 @@ export default function App(): JSX.Element {
   const roundDeltaMap = new Map<number, number>((latestRound?.scoreChanges || []).map((x: any) => [x.seat, x.delta]));
 
   const mySeat = state.yourSeat ?? 0;
+  // Convert absolute seat id to the current viewer perspective.
   const seatMap = {
     bottom: findPlayerBySeat(state.players, mySeat),
     top: findPlayerBySeat(state.players, (mySeat + 2) % 4),
@@ -170,6 +172,7 @@ export default function App(): JSX.Element {
   const discardsBySeat = groupDiscardsBySeat(state.discards);
   const lastDiscard = state.discards.length > 0 ? state.discards[state.discards.length - 1] : null;
   const lastDiscardPlayerName = lastDiscard ? (findPlayerBySeat(state.players, lastDiscard.seat)?.name || `S${lastDiscard.seat}`) : '';
+  // Pending reaction always points to the tile source seat, so river highlight can locate it.
   const reactionTarget = state.pendingReaction ? { seat: state.pendingReaction.fromSeat, tileCode: state.pendingReaction.tileCode } : null;
 
   useEffect(() => {
@@ -471,6 +474,7 @@ function SeatPanel({ styles, player, rematchReadySeats, vertical = false, side, 
     return Array.from({ length: inferMeldCount(raw.type) }, () => `${suitPrefix(m.tile.suit)}${m.tile.rank}`);
   });
   const concealedCount = isSelf ? 0 : Math.max(0, Number((player as any).handCount ?? 0));
+  // Reserve full 14 slots for side seats to keep column height stable across draw/discard/peng/gang.
   const sideConcealedSlots = 14;
   const concealedTiles = Array.from({ length: vertical && !isSelf ? sideConcealedSlots : concealedCount }, (_, i) => i);
   return (
@@ -517,7 +521,7 @@ function SeatPanel({ styles, player, rematchReadySeats, vertical = false, side, 
             ))}
           </ScrollView>
         ) : (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.meldInlineScroller} contentContainerStyle={[styles.meldGroupWrap, compact && styles.meldGroupWrapCompact, styles.meldGroupWrapInlineNowrap]}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.meldInlineScroller} contentContainerStyle={[styles.meldGroupWrap, compact && styles.meldGroupWrapCompact, styles.meldGroupWrapInlineNowrap, styles.meldGroupWrapInlineNoGap]}>
             {meldNodes}
             {concealedTiles.map((i) => (
               <MiniTile key={`${player.seat}-h-${i}`} styles={styles} code="back" borderless />
@@ -536,14 +540,12 @@ function MeldGroupView({ styles, meld, side, enlarge = false }: { styles: AppSty
     ? rawTiles.map((t: any) => `${suitPrefix(t.suit)}${t.rank}`)
     : Array.from({ length: inferMeldCount(raw.type) }, () => `${suitPrefix(meld.tile.suit)}${meld.tile.rank}`);
   return (
-    <View style={styles.meldGroup}>
-      <View style={styles.meldTilesRow}>
-        {tiles.map((c, i) => (
-          side
-            ? <SideMiniTile key={`${c}-${i}`} styles={styles} code={c} side={side} borderless enlarge={enlarge} />
-            : <MiniTile key={`${c}-${i}`} styles={styles} code={c} borderless />
-        ))}
-      </View>
+    <View style={styles.meldTilesRow}>
+      {tiles.map((c, i) => (
+        side
+          ? <SideMiniTile key={`${c}-${i}`} styles={styles} code={c} side={side} borderless enlarge={enlarge} />
+          : <MiniTile key={`${c}-${i}`} styles={styles} code={c} borderless />
+      ))}
     </View>
   );
 }
@@ -563,6 +565,7 @@ function CenterHUD({ styles, turnSeat, roomPhase, roundNo, maxRounds, statusKey,
 }
 
 function DiscardRivers({ styles, discardsBySeat, mySeat, reactionTarget }: { styles: AppStyles; discardsBySeat: Record<number, string[]>; mySeat: number; reactionTarget?: { seat: number; tileCode: string } | null }) {
+  // Keep river seat mapping identical to seatMap above to avoid perspective drift.
   const topSeat = (mySeat + 2) % 4;
   const leftSeat = (mySeat + 1) % 4;
   const rightSeat = (mySeat + 3) % 4;
@@ -665,6 +668,7 @@ function Tile({ styles, code, small = false, river = false, borderless = false, 
       pulseOpacity.setValue(1);
       return;
     }
+    // River highlight uses pulse + ring overlay so tile art border can stay untouched.
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseOpacity, { toValue: 0.58, duration: 420, useNativeDriver: true }),
@@ -824,6 +828,7 @@ function buildScoreFeedLines(state: LobbyViewState, latestRound: any) {
 }
 
 function createStyles(theme: ThemeTokens) {
+  // Side columns are sized for a full concealed hand so table layout does not jump.
   const sideReservedTiles = 14;
   const sideTileHeight = 35;
   const sideTileGap = 4;
@@ -930,6 +935,7 @@ function createStyles(theme: ThemeTokens) {
     },
     seatMeldPanelSelfTransparent: { borderWidth: 0, backgroundColor: 'transparent' },
     seatMeldPanelHorizontal: { flex: 1, minWidth: 140, minHeight: 0, paddingVertical: 1, alignSelf: 'center' },
+    // Fixed height prevents side seat cards/rivers from shifting during meld and hand-count updates.
     seatMeldPanelVertical: { alignSelf: 'center', alignItems: 'center', height: sideReservedHeight, minHeight: sideReservedHeight, maxHeight: sideReservedHeight, overflow: 'hidden' },
     seatNameTurn: { color: '#BFDBFE' },
     seatName: { color: theme.textPrimary, fontWeight: '700', fontSize: 16, lineHeight: 20 },
@@ -940,10 +946,11 @@ function createStyles(theme: ThemeTokens) {
     meldGroupWrapInline: { marginTop: 0, justifyContent: 'flex-end', maxWidth: 220 },
     meldGroupWrapVerticalSingle: { marginTop: 4, flexDirection: 'column', flexWrap: 'nowrap', alignItems: 'center', justifyContent: 'flex-start' },
     meldGroupWrapVerticalNoGap: { gap: 0 },
+    meldGroupWrapInlineNoGap: { gap: 0 },
     meldGroupWrapInlineNowrap: { marginTop: 0, flexWrap: 'nowrap', alignItems: 'center', paddingRight: 2 },
     meldVerticalScroller: { flex: 1, minHeight: 0, maxHeight: '100%', alignSelf: 'stretch' },
     meldGroup: { borderWidth: 1, borderColor: theme.borderSoft, borderRadius: 8, padding: 3, backgroundColor: 'transparent' },
-    meldTilesRow: { flexDirection: 'row', gap: 2 },
+    meldTilesRow: { flexDirection: 'row', gap: 0 },
 
     centerHud: { width: '100%', marginTop: 10, alignSelf: 'stretch', borderWidth: 1, borderColor: theme.borderSoft, borderRadius: 12, backgroundColor: theme.bgCard, padding: 10, alignItems: 'flex-start' },
     centerTitle: { color: theme.textPrimary, fontWeight: '700', fontSize: 16, lineHeight: 20 },
@@ -952,19 +959,20 @@ function createStyles(theme: ThemeTokens) {
     lastDiscardBadgeFlash: { borderColor: theme.warning, backgroundColor: '#3A2A10' },
     lastDiscardText: { color: '#FEF3C7', fontWeight: '700', fontSize: 12 },
 
+    // Keep river area size stable; only tile size changes, not container footprint.
     riversWrap: { width: '74%', minHeight: 300, alignSelf: 'flex-start', marginTop: 0, borderWidth: 1, borderColor: theme.riverBorder, borderRadius: 12, padding: 10, backgroundColor: theme.riverBg },
     bottomSeatWrap: { marginTop: 14, width: '74%', maxWidth: 980, alignSelf: 'center', flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'flex-start', columnGap: 12 },
     riverGrid: { alignItems: 'center', marginVertical: 2 },
     riverGridCompact: { width: '48%' },
-    riverGridVertical: { width: '48%', flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center', columnGap: 6 },
+    riverGridVertical: { width: '48%', flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center', columnGap: 0 },
     riverGridVerticalLeft: { justifyContent: 'flex-start' },
     riverGridVerticalRight: { justifyContent: 'flex-end' },
-    riverRow: { flexDirection: 'row', gap: 5, minHeight: 40, justifyContent: 'center' },
+    riverRow: { flexDirection: 'row', gap: 0, minHeight: 40, justifyContent: 'center' },
     riverRowStart: { justifyContent: 'flex-start' },
-    riverRowVertical: { flexDirection: 'column', minHeight: 0, gap: 4 },
+    riverRowVertical: { flexDirection: 'column', minHeight: 0, gap: 0 },
     riverMiddle: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginVertical: 6 },
-    riverGhostTile: { width: 35, height: 49, opacity: 0 },
-    riverGhostSide: { width: 49, height: 35, opacity: 0 },
+    riverGhostTile: { width: 39, height: 54, opacity: 0 },
+    riverGhostSide: { width: 54, height: 39, opacity: 0 },
 
     actionBarWrap: { marginTop: 12, backgroundColor: theme.bgCard, borderRadius: 12, padding: 10, borderWidth: 1, borderColor: theme.borderSoft },
     actionBarInline: { marginTop: 0, width: 360, maxWidth: '44%' },
@@ -1004,7 +1012,7 @@ function createStyles(theme: ThemeTokens) {
     tileRowDisabled: { opacity: 0.55 },
     tile: { width: 38, height: 58, borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, backgroundColor: '#FFFFFF', padding: 4, justifyContent: 'space-between', overflow: 'hidden' },
     tileSmall: { width: 29, height: 41, borderRadius: 6, padding: 2 },
-    tileSmallRiver: { width: 35, height: 49, padding: 0, overflow: 'visible' },
+    tileSmallRiver: { width: 39, height: 54, padding: 0, overflow: 'visible' },
     tileSmallRiverBorderless: { borderWidth: 0, backgroundColor: 'transparent' },
     tileBorderless: { borderWidth: 0, backgroundColor: 'transparent' },
     tileImageHost: { padding: 0, justifyContent: 'center', alignItems: 'center' },
@@ -1013,7 +1021,7 @@ function createStyles(theme: ThemeTokens) {
     tileImageSmallRiver: { width: '100%', height: '100%', borderRadius: 5 },
     sideTile: { width: 41, height: 29, borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 6, backgroundColor: 'transparent', paddingHorizontal: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', overflow: 'hidden' },
     sideTileEnlarged: { width: 44, height: 32 },
-    sideTileRiver: { width: 49, height: 35, paddingHorizontal: 0, overflow: 'visible' },
+    sideTileRiver: { width: 54, height: 39, paddingHorizontal: 0, overflow: 'visible' },
     sideTileRiverBorderless: { borderWidth: 0, backgroundColor: 'transparent' },
     sideTileBorderless: { borderWidth: 0, backgroundColor: 'transparent' },
     sideTileGhost: { opacity: 0 },
@@ -1030,6 +1038,7 @@ function createStyles(theme: ThemeTokens) {
     riverHighlightRingSide: { position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, borderWidth: 2, borderColor: '#FDE047', borderRadius: 5 },
     tilePressed: { transform: [{ translateY: 1 }] },
     tileInactive: { opacity: 0.72, backgroundColor: '#F3F4F6' },
+    // Prevent temporary gray fill on borderless/image-only tiles during interaction state changes.
     tileInactiveBorderless: { backgroundColor: 'transparent' },
     corner: { fontSize: 9, fontWeight: '700' },
     rank: { fontSize: 20, fontWeight: '800', textAlign: 'center' }
